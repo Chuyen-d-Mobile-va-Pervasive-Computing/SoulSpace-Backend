@@ -1,11 +1,11 @@
 import React from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from "react-native";
-import { ArrowLeft } from "lucide-react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView} from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import Heading from "../../components/heading";
 
 type RootStackParamList = {
-    Explore: undefined;
+    ExploreHome: undefined;
     TestInfo: { testType: string };
 };
 
@@ -15,11 +15,7 @@ export default function ExploreScreen() {
     return (
         <View style={styles.container}>
             {/* Header */}
-            <View style={styles.header}>
-                <ArrowLeft size={24} color="#fff" />
-                <Text style={styles.headerTitle}>Khám phá</Text>
-            </View>
-
+            <Heading title="Khám phá" showBack={true} />
             {/* Body */}
             <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 80 }}>
                 {cards.map((item, idx) => (
@@ -29,15 +25,12 @@ export default function ExploreScreen() {
                             <Text style={styles.cardTitle}>{item.title}</Text>
                             <Text style={styles.cardDesc}>{item.desc}</Text>
                         </View>
-
-                        {/* Button dẫn đến do.tsx */}
                         <TouchableOpacity
-  style={styles.cardButton}
-  onPress={() => navigation.navigate("TestInfo", { testType: item.title })}
->
-  <Text style={styles.cardButtonText}>Thực hiện bảng câu hỏi</Text>
-</TouchableOpacity>
-
+                            style={styles.cardButton}
+                            onPress={() => navigation.navigate("TestInfo", { testType: item.title })}
+                            >
+                            <Text style={styles.cardButtonText}>Thực hiện bảng câu hỏi</Text>
+                        </TouchableOpacity>
                     </View>
                 ))}
             </ScrollView>
@@ -49,22 +42,22 @@ const cards = [
     {
         title: "MBTI - Khám phá tính cách của bạn",
         desc: "Bạn là người hướng nội hay hướng ngoại? ...",
-        image: require("../assets/mbti.png"),
+        image: require("../../assets/mbti.png"),
     },
     {
         title: "PHQ-9 – Đo lường mức độ trầm cảm",
         desc: "Cảm thấy buồn bã, mất động lực ...",
-        image: require("../assets/phq.png"),
+        image: require("../../assets/phq.png"),
     },
     {
         title: "GAD-7 – Đánh giá mức độ lo âu",
         desc: "Thường xuyên lo lắng, bồn chồn ...",
-        image: require("../assets/anxiety.png"),
+        image: require("../../assets/anxiety.png"),
     },
     {
         title: "PSS – Đo mức độ căng thẳng",
         desc: "Cuộc sống bận rộn khiến bạn cảm thấy áp lực? ...",
-        image: require("../assets/pss.png"),
+        image: require("../../assets/pss.png"),
     },
 ];
 
