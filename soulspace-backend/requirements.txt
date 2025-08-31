@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+motor
+pydantic
+pydantic[email]
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
+apscheduler
+pytest
+pytest-asyncio
+httpx
+pydantic-settings
+certifi
+email-validator
