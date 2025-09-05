@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     DATABASE_NAME: str
     JWT_SECRET_KEY: str
     ALLOWED_ORIGINS: str
+    SENTIMENT_MODEL: str = "roberta"  # default
 
     class Config:
         env_file = ".env"
