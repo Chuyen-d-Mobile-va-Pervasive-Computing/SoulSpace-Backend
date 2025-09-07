@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.api.auth_router import router as auth_router
 from app.api.journal_router import router as journal_router
+from app.api.anon_post_router import router as anon_post_router
 
 app = FastAPI(title="SoulSpace Backend")
 
@@ -17,6 +18,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(journal_router)
+app.include_router(anon_post_router)
 
 @app.on_event("startup")
 async def startup_event():
