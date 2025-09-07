@@ -30,3 +30,15 @@ class AnonPostRepository:
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="Post not found")
         return await self.get_by_id(post_id)
+    
+    async def increment_comment_count(self, post_id: str):
+        await self.collection.update_one(
+            {"_id": ObjectId(post_id)},
+            {"$inc": {"comment_count": 1}}
+        )
+
+    async def decrement_comment_count(self, post_id: str):
+        await self.collection.update_one(
+            {"_id": ObjectId(post_id)},
+            {"$inc": {"comment_count": -1}}
+        )
