@@ -50,3 +50,15 @@ class UserRepository:
             await self.update(user_id, {"last_login_at": login_time})
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update last login: {str(e)}")
+
+    async def update_reset_otp(self, user_id: str, otp: str, expiry: datetime):
+        try:
+            await self.update(user_id, {"reset_otp": otp, "reset_otp_expiry": expiry})
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update reset OTP: {str(e)}")
+
+    async def clear_reset_otp(self, user_id: str):
+        try:
+            await self.update(user_id, {"reset_otp": None, "reset_otp_expiry": None})
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to clear reset OTP: {str(e)}")

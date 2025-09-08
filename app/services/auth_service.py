@@ -1,14 +1,18 @@
 from fastapi import HTTPException, status
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.models.user_model import User
-from app.schemas.auth_schema import UserRegister, UserResponse
+from app.schemas.auth_schema import UserRegister, UserResponse, ForgotPasswordRequest, ResetPasswordRequest
 from app.repositories.user_repository import UserRepository
 from app.core.security import hash_password, verify_password, create_access_token
+from app.services.email_service import EmailService
+import random
+import string
 
 class AuthService:
-    def __init__(self, user_repo: UserRepository):
-        """Initialize AuthService with a user repository."""
+    def __init__(self, user_repo: UserRepository, email_service: EmailService):
+        """Initialize AuthService with a user repository and email service."""
         self.user_repo = user_repo
+        self.email_service = email_service
 
     async def register(self, user_data: UserRegister) -> UserResponse:
         """Register a new user.
@@ -27,14 +31,12 @@ class AuthService:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
         
         user = User(
-            username=user_data.username,
             email=user_data.email,
             password=hash_password(user_data.password)
         )
         try:
             created_user = await self.user_repo.create(user)
             return UserResponse(
-                username=created_user.username,
                 email=created_user.email,
                 created_at=created_user.created_at.isoformat(),
                 total_points=created_user.total_points
@@ -63,3 +65,48 @@ class AuthService:
             return create_access_token({"sub": str(user.id)})
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to login: {str(e)}")
+
+    async def forgot_password(self, forgot_data: ForgotPasswordRequest):
+        """Generate and send OTP for password reset.
+
+        Args:
+            forgot_data: Email for password reset.
+
+        Raises:
+            HTTPException: If email not found or error occurs.
+        """
+        user = await self.user_repo.get_by_email(forgot_data.email)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Email not found")
+        
+        # Generate 6-digit OTP
+        otp = ''.join(random.choices(string.digits, k=6))
+        expiry = datetime.utcnow() + timedelta(minutes=10)
+        
+        try:
+            await self.user_repo.update_reset_otp(str(user.id), otp, expiry)
+            await self.email_service.send_otp_email(forgot_data.email, otp)
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to process forgot password: {str(e)}")
+
+    async def reset_password(self, reset_data: ResetPasswordRequest):
+        """Reset password using OTP.
+
+        Args:
+            reset_data: Email, OTP, and new password.
+
+        Raises:
+            HTTPException: If email not found, OTP invalid/expired, or error occurs.
+        """
+        user = await self.user_repo.get_by_email(reset_data.email)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Email not found")
+        
+        if not user.reset_otp or user.reset_otp != reset_data.otp or user.reset_otp_expiry < datetime.utcnow():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OTP")
+        
+        try:
+            await self.user_repo.update(str(user.id), {"password": hash_password(reset_data.new_password)})
+            await self.user_repo.clear_reset_otp(str(user.id))
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to reset password: {str(e)}")

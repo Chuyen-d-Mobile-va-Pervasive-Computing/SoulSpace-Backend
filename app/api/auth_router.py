@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
-from app.schemas.auth_schema import UserRegister, UserLogin, UserResponse
+from app.schemas.auth_schema import UserRegister, UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest
 from app.services.auth_service import AuthService
+from app.services.email_service import EmailService
 from app.repositories.user_repository import UserRepository
 from app.core.database import get_db
 
@@ -8,7 +9,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 def get_auth_service(db=Depends(get_db)):
     user_repo = UserRepository(db)
-    return AuthService(user_repo)
+    email_service = EmailService()
+    return AuthService(user_repo, email_service)
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserRegister, service: AuthService = Depends(get_auth_service)):
@@ -18,3 +20,13 @@ async def register(user_data: UserRegister, service: AuthService = Depends(get_a
 async def login(user_data: UserLogin, service: AuthService = Depends(get_auth_service)):
     token = await service.login(user_data.email, user_data.password)
     return {"access_token": token, "token_type": "bearer"}
+
+@router.post("/forgot-password")
+async def forgot_password(forgot_data: ForgotPasswordRequest, service: AuthService = Depends(get_auth_service)):
+    await service.forgot_password(forgot_data)
+    return {"message": "OTP sent to email"}
+
+@router.post("/reset-password")
+async def reset_password(reset_data: ResetPasswordRequest, service: AuthService = Depends(get_auth_service)):
+    await service.reset_password(reset_data)
+    return {"message": "Password reset successfully"}
