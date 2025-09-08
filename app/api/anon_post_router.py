@@ -16,3 +16,8 @@ async def create_post(payload: AnonPostCreate, db=Depends(get_db), user=Depends(
 async def list_posts(db=Depends(get_db)):
     service = AnonPostService(db)
     return await service.post_repo.list()
+
+@router.delete("/{post_id}")
+async def delete_post(post_id: str, db=Depends(get_db), user=Depends(get_current_user)):
+    service = AnonPostService(db)
+    return await service.delete_post(user["_id"], post_id)

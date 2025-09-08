@@ -85,3 +85,18 @@ class AnonPostService:
         new_post["detected_keywords"] = detected
         
         return new_post
+    
+    async def delete_post(self, user_id: str, post_id: str):
+        # Lấy và xóa bài viết
+        post = await self.post_repo.delete(post_id)
+
+        # Ghi log moderation
+        await self.log_repo.create_log(
+            content_id=post_id,
+            content_type="post",
+            user_id=user_id,
+            text=post["content"],
+            detected_keywords=[],
+            action="Deleted"
+        )
+        return {"deleted": True, "post_id": post_id}

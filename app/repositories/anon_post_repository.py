@@ -42,3 +42,11 @@ class AnonPostRepository:
             {"_id": ObjectId(post_id)},
             {"$inc": {"comment_count": -1}}
         )
+
+    async def delete(self, post_id: str) -> dict:
+        post = await self.collection.find_one({"_id": ObjectId(post_id)})
+        if not post:
+            raise HTTPException(status_code=404, detail="Post not found")
+
+        await self.collection.delete_one({"_id": ObjectId(post_id)})
+        return post
