@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from datetime import datetime, timedelta
 from app.models.user_model import User
-from app.schemas.auth_schema import UserRegister, UserResponse, ForgotPasswordRequest, ResetPasswordRequest
+from app.schemas.auth_schema import UserRegister, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest
 from app.repositories.user_repository import UserRepository
 from app.core.security import hash_password, verify_password, create_access_token
 from app.services.email_service import EmailService
@@ -110,3 +110,25 @@ class AuthService:
             await self.user_repo.clear_reset_otp(str(user.id))
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to reset password: {str(e)}")
+
+    async def change_password(self, user_id: str, change_data: ChangePasswordRequest):
+        """Change user password.
+
+        Args:
+            user_id: ID of the authenticated user.
+            change_data: Old password, new password, and confirmation.
+
+        Raises:
+            HTTPException: If old password is incorrect, passwords don't match, or database error occurs.
+        """
+        user = await self.user_repo.get_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        if not verify_password(change_data.old_password, user.password):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect old password")
+
+        try:
+            await self.user_repo.update(user_id, {"password": hash_password(change_data.new_password)})
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to change password: {str(e)}")
