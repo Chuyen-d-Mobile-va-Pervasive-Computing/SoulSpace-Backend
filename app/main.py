@@ -7,6 +7,7 @@ from app.api.journal_router import router as journal_router
 from app.api.anon_post_router import router as anon_post_router
 from app.api.anon_comment_router import router as anon_comment_router
 from app.api.anon_like_router import router as anon_like_router
+from app.api.reminder_router import router as reminder_router
 
 app = FastAPI(title="SoulSpace Backend")
 
@@ -23,6 +24,7 @@ app.include_router(journal_router)
 app.include_router(anon_post_router)
 app.include_router(anon_comment_router)
 app.include_router(anon_like_router)
+app.include_router(reminder_router)
 
 @app.on_event("startup")
 async def startup_event():
