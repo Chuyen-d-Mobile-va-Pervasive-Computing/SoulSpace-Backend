@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     EMAIL_PORT: int
     EMAIL_USER: str
     EMAIL_PASSWORD: str
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
 
     class Config:
         env_file = ".env"

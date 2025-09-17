@@ -15,3 +15,7 @@ pydantic-settings
 certifi
 email-validator
 transformers==4.56.1
+
+torch 
+torchvision 
+torchaudio 
