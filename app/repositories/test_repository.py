@@ -17,3 +17,10 @@ class TestRepository:
     async def get_questions_by_test_id(self, test_id: ObjectId) -> List[Dict[str, Any]]:
         cursor = self.questions_collection.find({"test_id": test_id}).sort("question_order", 1)
         return await cursor.to_list(length=None)
+    
+    async def get_by_id(self, test_id: ObjectId) -> Dict | None:
+        return await self.tests_collection.find_one({"_id": test_id})
+
+    async def get_questions_by_test_id(self, test_id: ObjectId) -> List[Dict[str, Any]]:
+        cursor = self.questions_collection.find({"test_id": test_id}).sort("question_order", 1)
+        return await cursor.to_list(length=None)
