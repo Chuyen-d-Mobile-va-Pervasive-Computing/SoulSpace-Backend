@@ -1,0 +1,31 @@
+word,weight,category
+ngu,0.10,insult
+đồ ngu,0.12,insult
+đồ bỏ,0.12,insult
+cút,0.18,insult
+cút đi,0.18,insult
+cút khỏi đây,0.18,insult
+đm,0.15,insult
+đmm,0.15,insult
+cc,0.12,insult
+chết đi,0.20,self_harm
+muốn chết,0.25,self_harm
+tự tử,0.30,self_harm
+giết,0.18,violence
+giết hết,0.05,violence
+tao sẽ giết,0.04,violence
+bắn,0.12,violence
+đập,0.10,violence
+phá,0.08,violence
+đánh,0.09,violence
+ngu ngốc,0.11,insult
+đồ vãi,0.12,insult
+đồ vô dụng,0.14,insult
+lồn,0.16,insult
+mẹ mày,0.13,insult
+đĩ,0.17,insult
+xúc phạm,0.10,insult
+tự sát,0.30,self_harm
+cắn chết,0.05,violence
+chém,0.12,violence
+biến khỏi đây,0.15,insult
