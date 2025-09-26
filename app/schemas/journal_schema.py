@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 
 class TagSchema(BaseModel):
@@ -10,8 +10,9 @@ class TagSchema(BaseModel):
 class JournalCreate(BaseModel):
     emotion_label: str
     emotion_emoji: str
-    text_content: str 
-    tags: List[TagSchema] = []
+    text_content: str
+    voice_note_path: Optional[str] = None
+    tags: Optional[List[TagSchema]] = None  # Thay đổi thành Optional[List[TagSchema]]
 
 # Schema response (server trả về)
 class JournalResponse(BaseModel):
@@ -21,6 +22,8 @@ class JournalResponse(BaseModel):
     emotion_label: str
     emotion_emoji: str
     text_content: str
+    voice_note_path: Optional[str] = None
+    voice_text: Optional[str] = None
     sentiment_label: str
     sentiment_score: float
-    tags: List[TagSchema] = []
+    tags: Optional[List[TagSchema]] = None 
