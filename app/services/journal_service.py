@@ -1,33 +1,22 @@
-from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
+import asyncio
 from bson import ObjectId
 from app.repositories.journal_repository import JournalRepository
 from app.schemas.journal_schema import JournalCreate
 from app.models.journal_model import Journal
 from app.core.constants import ICON_SENTIMENT_MAP
 from app.core.config import settings
-import logging
-import os
-import torch
-import soundfile as sf
-import librosa
+import assemblyai as aai
+from transformers import pipeline
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Set AssemblyAI API key
+aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
 
 # Initialize sentiment analysis pipeline
 if settings.SENTIMENT_MODEL.lower() == "roberta":
     SENTIMENT_MODEL = "cardiffnlp/twitter-roberta-base-sentiment"
 else:
     SENTIMENT_MODEL = "distilbert-base-uncased-finetuned-sst-2-english"
-logger.info(f"Loading sentiment model: {SENTIMENT_MODEL}")
 sentiment_pipeline = pipeline("sentiment-analysis", model=SENTIMENT_MODEL)
-
-# Initialize Whisper Medium for English speech-to-text
-WHISPER_MODEL = "openai/whisper-medium"
-logger.info(f"Loading Whisper model: {WHISPER_MODEL}")
-processor = AutoProcessor.from_pretrained(WHISPER_MODEL)
-model = AutoModelForSpeechSeq2Seq.from_pretrained(WHISPER_MODEL)
-model.config.forced_decoder_ids = processor.get_decoder_prompt_ids(language="en", task="transcribe")
 
 def analyze_sentiment(text: str):
     """Analyze sentiment of the given text."""
@@ -43,32 +32,23 @@ def analyze_sentiment(text: str):
 class JournalService:
     def __init__(self, journal_repo: JournalRepository):
         self.journal_repo = journal_repo
-        self.processor = processor
-        self.model = model
 
-    def transcribe_audio(self, audio_path: str) -> str:
-        """Transcribe an English MP3 audio file to text using Whisper Medium."""
+    async def transcribe_audio(self, audio_content: bytes) -> str:
+        """Transcribe an English MP3 audio from bytes using AssemblyAI (async wrapper)."""
         try:
-            if not audio_path or not os.path.exists(audio_path):
-                raise ValueError("Audio file path is invalid or does not exist")
+            if not audio_content:
+                raise ValueError("Audio content is empty")
 
-            # Load and decode MP3 file to raw audio
-            audio_data, samplerate = sf.read(audio_path, dtype="float32")
-            if samplerate != 16000:
-                logger.warning(f"Resampling audio from {samplerate}Hz to 16000Hz")
-                audio_data = librosa.resample(audio_data, orig_sr=samplerate, target_sr=16000)
+            def _transcribe():
+                transcriber = aai.Transcriber()
+                transcript = transcriber.transcribe(audio_content)
+                if transcript.status == aai.TranscriptStatus.error:
+                    raise Exception(f"Transcription error: {transcript.error}")
+                return transcript.text
 
-            # Process audio for Whisper
-            input_features = self.processor(audio_data, sampling_rate=16000, return_tensors="pt").input_features
-
-            # Perform transcription
-            with torch.no_grad():
-                predicted_ids = self.model.generate(input_features)
-            transcription = self.processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
-            logger.info(f"Transcribed audio to text: {transcription}")
+            transcription = await asyncio.to_thread(_transcribe)
             return transcription
         except Exception as e:
-            logger.error(f"Transcription failed: {str(e)}")
             return f"Transcription error: {str(e)}"
 
     async def create_journal(self, user_id: str, data: JournalCreate) -> Journal:
@@ -77,7 +57,8 @@ class JournalService:
         journal_dict["user_id"] = ObjectId(user_id)
 
         if data.voice_note_path:
-            voice_text = self.transcribe_audio(data.voice_note_path)
+            with open(data.voice_note_path, "rb") as f:
+                voice_text = await self.transcribe_audio(f.read())
             journal_dict["voice_text"] = voice_text
             text = voice_text
         elif data.text_content:
@@ -94,6 +75,7 @@ class JournalService:
 
         journal_dict["sentiment_label"] = label
         journal_dict["sentiment_score"] = score
+        journal_dict["tags"] = data.tags or []  # Ensure tags is List[str]
         return await self.journal_repo.create(journal_dict)
 
     async def get_user_journals(self, user_id: str) -> list[Journal]:

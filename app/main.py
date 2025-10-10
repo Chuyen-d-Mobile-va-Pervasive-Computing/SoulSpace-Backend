@@ -21,22 +21,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API_PREFIX = "/api/v1"
-# app.include_router(auth_router, prefix=API_PREFIX)
-# app.include_router(journal_router, prefix=API_PREFIX)
-# app.include_router(anon_post_router, prefix=API_PREFIX)
-# app.include_router(anon_comment_router, prefix=API_PREFIX)
-# app.include_router(anon_like_router, prefix=API_PREFIX)
-# app.include_router(reminder_router, prefix=API_PREFIX)
-# app.include_router(test_router, prefix=API_PREFIX)
-
-app.include_router(auth_router)
-app.include_router(journal_router)
-app.include_router(anon_post_router)
-app.include_router(anon_comment_router)
-app.include_router(anon_like_router)
-app.include_router(reminder_router)
-app.include_router(test_router)
+API_PREFIX = "/api/v1"
+app.include_router(auth_router, prefix=API_PREFIX)
+app.include_router(journal_router, prefix=API_PREFIX)
+app.include_router(anon_post_router, prefix=API_PREFIX)
+app.include_router(anon_comment_router, prefix=API_PREFIX)
+app.include_router(anon_like_router, prefix=API_PREFIX)
+app.include_router(reminder_router, prefix=API_PREFIX)
+app.include_router(test_router, prefix=API_PREFIX)
 
 
 @app.on_event("startup")
