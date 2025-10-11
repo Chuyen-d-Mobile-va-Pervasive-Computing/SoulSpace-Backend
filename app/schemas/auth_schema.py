@@ -17,6 +17,7 @@ class UserLogin(BaseModel):
     password: str = Field(..., min_length=6)
 
 class UserResponse(BaseModel):
+    username: str
     email: EmailStr
     created_at: str
     total_points: int
@@ -53,4 +54,15 @@ class ChangePasswordRequest(BaseModel):
     def passwords_match(cls, v, values):
         if "new_password" in values and v != values["new_password"]:
             raise ValueError("Confirm password does not match new password")
+        return v
+
+class UpdateUsernameRequest(BaseModel):
+    new_username: str = Field(..., max_length=30)
+
+    @validator("new_username")
+    def validate_username(cls, v):
+        if not re.match(r"^[a-zA-Z0-9_]+$", v):
+            raise ValueError("Username must contain only letters, numbers, and underscores")
+        if len(v) < 3:
+            raise ValueError("Username must be at least 3 characters long")
         return v

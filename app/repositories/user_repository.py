@@ -7,6 +7,7 @@ from typing import Optional
 class UserRepository:
     def __init__(self, db):
         self.db = db
+        # Xóa self.db.users.create_index("username", unique=True) khỏi đây
 
     async def create(self, user: User) -> User:
         try:
@@ -29,6 +30,13 @@ class UserRepository:
             return User(**user_data) if user_data else None
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch user: {str(e)}")
+
+    async def get_by_username(self, username: str) -> Optional[User]:
+        try:
+            user_data = await self.db.users.find_one({"username": username})
+            return User(**user_data) if user_data else None
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch user by username: {str(e)}")
 
     async def update(self, user_id: str, update_data: dict):
         try:

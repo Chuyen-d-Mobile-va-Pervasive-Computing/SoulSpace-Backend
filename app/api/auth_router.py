@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from app.schemas.auth_schema import UserRegister, UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest
+from app.schemas.auth_schema import UserRegister, UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, UpdateUsernameRequest
 from app.services.auth_service import AuthService
 from app.services.email_service import EmailService
 from app.repositories.user_repository import UserRepository
@@ -40,3 +40,12 @@ async def change_password(
 ):
     await service.change_password(str(current_user["_id"]), change_data)
     return {"message": "Password changed successfully"}
+
+@router.post("/update-username")
+async def update_username(
+    update_data: UpdateUsernameRequest,
+    service: AuthService = Depends(get_auth_service),
+    current_user: dict = Depends(get_current_user)
+):
+    result = await service.update_username(str(current_user["_id"]), update_data)
+    return result

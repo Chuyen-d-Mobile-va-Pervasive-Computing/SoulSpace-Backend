@@ -6,6 +6,7 @@ from app.utils.pyobjectid import PyObjectId
 
 class User(BaseModel):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    username: str  # Thêm trường username
     email: EmailStr
     password: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
