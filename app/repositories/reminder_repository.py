@@ -7,6 +7,9 @@ from app.core.database import get_db
 class ReminderRepository:
     def __init__(self, db):
         self.db = db
+        # Create indexes
+        self.db.reminders.create_index([("user_id", 1), ("time_of_day", 1)])
+        self.db.reminders.create_index([("user_id", 1), ("is_active", 1)])
 
     async def create(self, reminder: Reminder) -> Reminder:
         """Create a new reminder."""
@@ -21,6 +24,11 @@ class ReminderRepository:
         """Get a reminder by ID."""
         try:
             reminder_data = await self.db.reminders.find_one({"_id": ObjectId(reminder_id)})
+            if reminder_data:
+                # Đảm bảo các trường cần thiết có giá trị mặc định
+                reminder_data.setdefault("time_of_day", "")
+                reminder_data.setdefault("repeat_type", "once")
+                reminder_data.setdefault("repeat_days", [])
             return Reminder(**reminder_data) if reminder_data else None
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch reminder: {str(e)}")
@@ -29,7 +37,8 @@ class ReminderRepository:
         """Get all reminders for a user."""
         try:
             cursor = self.db.reminders.find({"user_id": ObjectId(user_id)})
-            return [Reminder(**reminder) for reminder in await cursor.to_list(length=100)]
+            reminders = await cursor.to_list(length=100)
+            return [Reminder(**{**{"time_of_day": "", "repeat_type": "once", "repeat_days": []}, **reminder}) for reminder in reminders]
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fetch reminders: {str(e)}")
 
