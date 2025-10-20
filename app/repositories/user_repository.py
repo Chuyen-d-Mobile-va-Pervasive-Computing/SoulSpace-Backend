@@ -7,7 +7,6 @@ from typing import Optional
 class UserRepository:
     def __init__(self, db):
         self.db = db
-        # Xóa self.db.users.create_index("username", unique=True) khỏi đây
 
     async def create(self, user: User) -> User:
         try:
@@ -70,3 +69,16 @@ class UserRepository:
             await self.update(user_id, {"reset_otp": None, "reset_otp_expiry": None})
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to clear reset OTP: {str(e)}")
+        
+    async def increment_total_points(self, user_id: ObjectId, points_to_add: int) -> bool:
+        try:
+            result = await self.db.users.update_one(
+                {"_id": user_id},
+                {"$inc": {"total_points": points_to_add}}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail=f"Failed to increment user points: {str(e)}"
+            )
