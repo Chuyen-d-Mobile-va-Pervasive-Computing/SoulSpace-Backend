@@ -1,14 +1,15 @@
 from pydantic import BaseModel, EmailStr, Field
 from bson import ObjectId
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 from app.utils.pyobjectid import PyObjectId
 
 class User(BaseModel):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-    username: str  # Thêm trường username
+    username: str
     email: EmailStr
     password: str
+    role: Literal["user", "admin"] = "user"
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_login_at: Optional[datetime] = None
     total_points: int = 0

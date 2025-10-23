@@ -1,10 +1,12 @@
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, validator
+from typing import Literal, Optional
 import re
 
 class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
+    role: Optional[Literal["user", "admin"]] = "user"
 
     @validator("password")
     def validate_password(cls, v):
@@ -19,11 +21,19 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     username: str
     email: EmailStr
+    role: Literal["user", "admin"]
     created_at: str
     total_points: int
 
     class Config:
+        from_attributes = True
         json_encoders = {datetime: lambda v: v.isoformat()}
+        
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    username: str
+    role: Literal["user", "admin"]
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr

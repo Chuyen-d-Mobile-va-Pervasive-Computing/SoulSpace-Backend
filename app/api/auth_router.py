@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from app.schemas.auth_schema import UserRegister, UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, UpdateUsernameRequest
+from app.schemas.auth_schema import UserRegister, UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, UpdateUsernameRequest, TokenResponse
 from app.services.auth_service import AuthService
 from app.services.email_service import EmailService
 from app.repositories.user_repository import UserRepository
@@ -17,10 +17,9 @@ def get_auth_service(db=Depends(get_db)):
 async def register(user_data: UserRegister, service: AuthService = Depends(get_auth_service)):
     return await service.register(user_data)
 
-@router.post("/login")
+@router.post("/login", response_model=TokenResponse)
 async def login(user_data: UserLogin, service: AuthService = Depends(get_auth_service)):
-    token = await service.login(user_data.email, user_data.password)
-    return {"access_token": token, "token_type": "bearer"}
+    return await service.login(user_data.email, user_data.password)
 
 @router.post("/forgot-password")
 async def forgot_password(forgot_data: ForgotPasswordRequest, service: AuthService = Depends(get_auth_service)):
