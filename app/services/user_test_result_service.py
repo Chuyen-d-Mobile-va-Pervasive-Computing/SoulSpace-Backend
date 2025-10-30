@@ -89,7 +89,11 @@ class UserTestResultService:
 
         if in_progress_doc:
             logger.info(f"Finalizing existing draft {in_progress_doc['_id']} for user {user_id}")
-            return await self.result_repo.find_and_finalize_result(in_progress_doc["_id"], final_data)
+            result = await self.result_repo.find_and_finalize_result(in_progress_doc["_id"], final_data)
+            if result:
+                result["test_code"] = test_doc["test_code"]
+            return result
+
         else:
             logger.info(f"Creating new completed result for user {user_id}")
             new_result_document = {
@@ -98,7 +102,10 @@ class UserTestResultService:
                 "started_at": datetime.utcnow(),
                 **final_data
             }
-            return await self.result_repo.create_result(new_result_document)
+            result = await self.result_repo.create_result(new_result_document)
+            if result:
+                result["test_code"] = test_doc["test_code"]
+            return result
 
 
     async def save_test_progress(self, user_id: ObjectId, test_code: str, payload: SubmitTestPayloadSchema):
@@ -115,7 +122,10 @@ class UserTestResultService:
 
             final_answers = list(existing_answers.values())
             await self.result_repo.update_answers(in_progress_doc["_id"], final_answers)
-            return await self.result_repo.get_by_id(in_progress_doc["_id"])
+            result = await self.result_repo.get_by_id(in_progress_doc["_id"])
+            if result:
+                result["test_code"] = test_doc["test_code"]
+            return result
         else:
             draft_data = {
                 "user_id": ObjectId(user_id),
@@ -130,7 +140,10 @@ class UserTestResultService:
                 "guidance_notes": None,
                 "needs_expert": None
             }
-            return await self.result_repo.create_draft(draft_data)
+            result = await self.result_repo.create_draft(draft_data)
+            if result:
+                result["test_code"] = test_doc["test_code"]
+            return result
 
     async def finalize_test_result(self, user_id: ObjectId, result_id: ObjectId, payload: SubmitTestPayloadSchema):
         result_doc = await self.result_repo.get_by_id(result_id)

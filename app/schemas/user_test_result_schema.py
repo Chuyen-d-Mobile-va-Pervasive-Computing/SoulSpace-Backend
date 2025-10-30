@@ -25,7 +25,7 @@ class UserTestResultResponseSchema(BaseModel):
     id: PyObjectId = Field(alias="_id")
     user_id: PyObjectId
     test_id: PyObjectId
-    
+    test_code: str
     status: str
     started_at: datetime
     completed_at: Optional[datetime] = None

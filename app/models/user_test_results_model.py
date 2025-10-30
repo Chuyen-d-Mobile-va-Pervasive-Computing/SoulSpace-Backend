@@ -13,7 +13,7 @@ class UserTestResult(BaseModel):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     user_id: PyObjectId
     test_id: PyObjectId
-    
+    test_code: str
     status: str = Field(default="in-progress") # "in-progress" hoặc "completed"
     started_at: datetime = Field(default_factory=datetime.utcnow)
     completed_at: Optional[datetime] = None # Chỉ có giá trị khi status là "completed"
