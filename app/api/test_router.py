@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from app.utils.pyobjectid import PyObjectId
 
-from app.schemas.test_schema import TestResponseSchema, TestQuestionResponseSchema
+from app.schemas.test_schema import TestResponseSchema, TestQuestionResponseSchema, TestWithProgressResponseSchema
 from app.services.test_service import (
     TestService,
     get_test_service,
@@ -14,12 +14,13 @@ from app.core.dependencies import get_current_user
 from app.models.user_model import User
 
 from app.schemas.test_schema import TestResponseSchema, TestQuestionResponseSchema
-from app.schemas.user_test_result_schema import SubmitTestPayloadSchema, UserTestResultResponseSchema
+from app.schemas.user_test_result_schema import SubmitTestPayloadSchema, UserTestResultResponseSchema  ,  CompletedTestSummarySchema, UserTestResultDetailSchema
 from app.services.test_service import get_test_service
 from app.services.user_test_result_service import (
     UserTestResultService, get_user_test_result_service,
     TestNotFoundError, ResultNotFoundError, NotOwnerOfResultError,
-    TestAlreadyCompletedError, AnswerCountMismatchError, InvalidOptionError
+    TestAlreadyCompletedError, AnswerCountMismatchError, InvalidOptionError,
+
 )
 
 
@@ -27,14 +28,15 @@ router = APIRouter(prefix="/tests", tags=["Psychological Tests"])
 
 @router.get(
     "",
-    response_model=List[TestResponseSchema],
-    summary="Get a list of all available tests"
+    response_model=List[TestWithProgressResponseSchema],
+    summary="Get all tests with user's completion progress" 
 )
-async def get_all_available_tests(
-    test_service: TestService = Depends(get_test_service)
+async def get_all_available_tests_with_progress(
+    test_service: TestService = Depends(get_test_service),
+    current_user: User = Depends(get_current_user) 
 ):
     try:
-        return await test_service.get_all_tests()
+        return await test_service.get_all_tests_with_user_progress(current_user["_id"])
     except DatabaseOperationError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -122,5 +124,42 @@ async def submit_completed_test(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except (AnswerCountMismatchError, InvalidOptionError) as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An unexpected error occurred: {e}")
+
+
+@router.get(
+    "/completed",
+    response_model=List[CompletedTestSummarySchema],
+    summary="Get summary of all completed tests for the current user"
+)
+async def get_completed_tests_summary(
+    service: UserTestResultService = Depends(get_user_test_result_service),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        return await service.get_user_completed_tests_summary(current_user["_id"])
+    except DatabaseOperationError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An unexpected error occurred: {e}")
+
+
+@router.get(
+    "/result/{result_id}",
+    response_model=UserTestResultDetailSchema,
+    summary="Get detailed results of a specific test attempt"
+)
+async def get_test_result_details(
+    result_id: PyObjectId,
+    service: UserTestResultService = Depends(get_user_test_result_service),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        return await service.get_result_details(result_id, current_user["_id"])
+    except ResultNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except NotOwnerOfResultError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An unexpected error occurred: {e}")

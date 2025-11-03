@@ -8,8 +8,8 @@ class OptionResponseSchema(BaseModel):
     score_value: int
 
     class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
+        from_attributes = True
+        validate_by_name = True
         json_encoders = {PyObjectId: str}
 
 class TestQuestionResponseSchema(BaseModel):
@@ -20,8 +20,8 @@ class TestQuestionResponseSchema(BaseModel):
     options: List[OptionResponseSchema]
 
     class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
+        from_attributes = True
+        validate_by_name = True
         json_encoders = {PyObjectId: str}
 
 class TestResponseSchema(BaseModel):
@@ -36,6 +36,10 @@ class TestResponseSchema(BaseModel):
     image_url: Optional[str] = None
 
     class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
+        from_attributes = True
+        validate_by_name = True
         json_encoders = {PyObjectId: str}
+
+
+class TestWithProgressResponseSchema(TestResponseSchema):
+    completion_percentage: float = Field(..., description="Tỷ lệ phần trăm hoàn thành của bài test (0-100)")

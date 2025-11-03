@@ -19,4 +19,4 @@ class AnonCommentResponse(BaseModel):
 
     class Config:
         json_encoders = {ObjectId: str, datetime: lambda v: v.isoformat()}
-        allow_population_by_field_name = True
+        validate_by_name = True

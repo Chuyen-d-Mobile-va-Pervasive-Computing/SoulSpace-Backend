@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.repositories.test_repository import TestRepository
 from app.repositories.user_test_result_repository import UserTestResultRepository
 from app.schemas.user_test_result_schema import SubmitTestPayloadSchema
-from app.services.test_service import get_test_repository
+from app.core.dependencies import get_test_repository, get_user_test_result_repository
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -186,10 +186,67 @@ class UserTestResultService:
 
         return await self.result_repo.find_and_finalize_result(result_id, final_data)
 
-# --- Dependency Injection (Giữ nguyên) ---
-def get_user_test_result_repository(db = Depends(get_db)) -> UserTestResultRepository:
-    return UserTestResultRepository(database=db)
+    async def get_user_completed_tests_summary(self, user_id: ObjectId):
+        try:
+            return await self.result_repo.get_latest_completed_results_by_user(user_id)
+        except Exception as e:
+            logger.error(f"Database error in get_user_completed_tests_summary: {e}")
+            raise DatabaseOperationError("Could not fetch completed test summaries.")
+            
+    async def get_result_details(self, result_id: ObjectId, user_id: ObjectId):
+        # 1. Lấy document kết quả
+        result_doc = await self.result_repo.get_by_id(result_id)
+        if not result_doc:
+            raise ResultNotFoundError(f"Test result with ID {result_id} not found.")
+        
+        # 2. Kiểm tra quyền sở hữu
+        if result_doc["user_id"] != user_id:
+            raise NotOwnerOfResultError("User is not the owner of this test result.")
 
+        # 3. Lấy thông tin bài test (test_name, test_code)
+        test_doc = await self.test_repo.get_by_id(result_doc["test_id"])
+        if not test_doc:
+            # Trường hợp hiếm gặp: kết quả tồn tại nhưng test đã bị xóa
+            raise TestNotFoundError(f"Associated test with ID {result_doc['test_id']} not found.")
+
+        # 4. Lấy tất cả câu hỏi của bài test để map
+        all_questions = await self.test_repo.get_questions_by_test_id(test_doc["_id"])
+        questions_map = {}
+        for q in all_questions:
+            options_map = {str(opt["option_id"]): opt["option_text"] for opt in q["options"]}
+            questions_map[str(q["_id"])] = {
+                "question_text": q["question_text"],
+                "options": options_map
+            }
+
+        # 5. Xây dựng response chi tiết
+        answered_questions_details = []
+        for answer in result_doc.get("answers", []):
+            q_id_str = str(answer["question_id"])
+            opt_id_str = str(answer["option_id"])
+            
+            question_info = questions_map.get(q_id_str)
+            if question_info:
+                chosen_option_text = question_info["options"].get(opt_id_str, "N/A")
+                answered_questions_details.append({
+                    "question_text": question_info["question_text"],
+                    "chosen_option_text": chosen_option_text,
+                    "score_value": answer["score_value"]
+                })
+
+        # Giả định max_score = num_questions * 3
+        max_score = test_doc.get("num_questions", 0) * 3
+
+        # 6. Gộp thông tin và trả về
+        response_data = {
+            **result_doc,
+            "test_name": test_doc["test_name"],
+            "test_code": test_doc["test_code"],
+            "max_score": max_score,
+            "answered_questions": answered_questions_details
+        }
+        return response_data
+# --- Dependency Injection  ---
 def get_user_test_result_service(
     test_repo: TestRepository = Depends(get_test_repository),
     result_repo: UserTestResultRepository = Depends(get_user_test_result_repository)

@@ -37,7 +37,7 @@ class ReminderCreate(BaseModel):
         return v
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "title": "Drink Water",
                 "message": "Drink a glass of water at 2 PM",
@@ -57,7 +57,7 @@ class ReminderUpdate(BaseModel):
     
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "title": "Updated Drink Water",
                 "time_of_day": "15:00",

@@ -3,19 +3,35 @@ from app.models.user_model import User
 from bson import ObjectId
 from datetime import datetime
 from typing import Optional
-
+from motor.motor_asyncio import AsyncIOMotorDatabase 
 class UserRepository:
-    def __init__(self, db):
+    def __init__(self,  db: AsyncIOMotorDatabase):
         self.db = db
 
     async def create(self, user: User) -> User:
         try:
-            result = await self.db.users.insert_one(user.dict(by_alias=True))
+            user_data_to_insert = {
+                "_id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "password": user.password,
+                "role": user.role,
+                "created_at": user.created_at,
+                "last_login_at": user.last_login_at,
+                "total_points": user.total_points,
+                "reset_otp": user.reset_otp,
+                "reset_otp_expiry": user.reset_otp_expiry,
+            }
+            
+            result = await self.db.users.insert_one(user_data_to_insert)
             user.id = result.inserted_id
             return user
         except Exception as e:
+            if "duplicate key" in str(e):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email or username already exists")
+                
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to create user: {str(e)}")
-
+        
     async def get_by_id(self, user_id: str) -> Optional[User]:
         try:
             user_data = await self.db.users.find_one({"_id": ObjectId(user_id)})

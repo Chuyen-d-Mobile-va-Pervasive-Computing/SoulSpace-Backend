@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 from app.utils.pyobjectid import PyObjectId
 from bson import ObjectId 
+from .test_schema import TestQuestionResponseSchema 
 
 class SubmitAnswerSchema(BaseModel):
     question_id: PyObjectId
@@ -17,8 +18,8 @@ class AnswerResponseSchema(BaseModel):
     score_value: int
 
     class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
+        from_attributes = True
+        validate_by_name = True
         json_encoders = {ObjectId: str}
 
 class UserTestResultResponseSchema(BaseModel):
@@ -39,6 +40,47 @@ class UserTestResultResponseSchema(BaseModel):
     answers: List[AnswerResponseSchema]
 
     class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
+        from_attributes = True
+        validate_by_name = True
+        json_encoders = {ObjectId: str}
+
+
+class CompletedTestSummarySchema(BaseModel):
+    result_id: PyObjectId
+    test_id: PyObjectId
+    test_code: str
+    test_name: str
+    completed_at: datetime
+    severity_level: str
+    score_ratio: str = Field(..., description="Tỷ lệ điểm, ví dụ '6/27'")
+
+    class Config:
+        from_attributes = True
+        validate_by_name = True
+        json_encoders = {ObjectId: str}
+
+class AnswerDetailSchema(BaseModel):
+    question_text: str
+    chosen_option_text: str
+    score_value: int
+
+class UserTestResultDetailSchema(BaseModel):
+    id: PyObjectId = Field(alias="_id")
+    user_id: PyObjectId
+    test_id: PyObjectId
+    test_code: str
+    test_name: str
+    status: str
+    completed_at: Optional[datetime]
+    total_score: Optional[int]
+    max_score: Optional[int]
+    severity_level: Optional[str]
+    result_label: Optional[str]
+    guidance_notes: Optional[str]
+    needs_expert: Optional[bool]
+    answered_questions: List[AnswerDetailSchema]
+
+    class Config:
+        from_attributes = True
+        validate_by_name = True
         json_encoders = {ObjectId: str}
