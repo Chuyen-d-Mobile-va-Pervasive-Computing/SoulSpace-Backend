@@ -11,6 +11,8 @@ from app.api.anon_like_router import router as anon_like_router
 from app.api.reminder_router import router as reminder_router
 from app.api.test_router import router as test_router
 from app.api.user_tree_router import router as user_tree_router
+from app.api.game_router import router as game_router
+from app.api.badge_router import router as badge_router
 
 app = FastAPI(title="SoulSpace Backend")
 
@@ -31,6 +33,8 @@ app.include_router(anon_like_router, prefix=API_PREFIX)
 app.include_router(reminder_router, prefix=API_PREFIX)
 app.include_router(test_router, prefix=API_PREFIX)
 app.include_router(user_tree_router, prefix=API_PREFIX)
+app.include_router(game_router, prefix=API_PREFIX)
+app.include_router(badge_router, prefix=API_PREFIX)
 
 
 @app.on_event("startup")

@@ -98,3 +98,30 @@ class UserRepository:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
                 detail=f"Failed to increment user points: {str(e)}"
             )
+
+    async def update_points(self, user_id: str, points: int):
+        """Cộng điểm cho user"""
+        try:
+            await self.db.users.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$inc": {"total_points": points}}
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to update points: {str(e)}"
+            )
+
+    async def get_user_points(self, user_id: str) -> int:
+        """Lấy tổng điểm user"""
+        try:
+            user = await self.db.users.find_one(
+                {"_id": ObjectId(user_id)},
+                {"total_points": 1}
+            )
+            return user.get("total_points", 0) if user else 0
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to fetch user points: {str(e)}"
+            )
