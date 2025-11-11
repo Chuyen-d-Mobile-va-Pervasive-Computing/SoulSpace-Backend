@@ -26,21 +26,40 @@ class ReminderService:
             ReminderResponse: Created reminder details.
         """
         if await self.reminder_repo.count_by_user_id(user_id) >= 10:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Maximum 10 reminders allowed per user")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Maximum 10 reminders allowed per user",
+            )
 
         # Calculate remind_at for "once" type
         if reminder_data.repeat_type == "once":
             now = datetime.utcnow()
             try:
                 hours, minutes = map(int, reminder_data.time_of_day.split(":"))
-                remind_at = datetime.combine(now.date(), datetime.min.time().replace(hour=hours, minute=minutes, second=0, microsecond=0))
+                remind_at = datetime.combine(
+                    now.date(),
+                    datetime.min.time().replace(
+                        hour=hours, minute=minutes, second=0, microsecond=0
+                    ),
+                )
                 if remind_at < now:
                     remind_at += timedelta(days=1)
             except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid time_of_day format, use HH:mm")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid time_of_day format, use HH:mm",
+                    )
+
+        try:
+            user_obj_id = ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid user_id format",
+            )
 
         reminder = Reminder(
-            user_id=ObjectId(user_id),
+            user_id=user_obj_id,
             title=reminder_data.title,
             message=reminder_data.message,
             time_of_day=reminder_data.time_of_day,
@@ -50,18 +69,20 @@ class ReminderService:
         try:
             created_reminder = await self.reminder_repo.create(reminder)
             return ReminderResponse(
-                id=created_reminder.id,
-                user_id=created_reminder.user_id,
+                id=str(created_reminder.id),
+                user_id=str(created_reminder.user_id),
                 title=created_reminder.title,
                 message=created_reminder.message,
                 time_of_day=created_reminder.time_of_day,
                 repeat_type=created_reminder.repeat_type,
                 repeat_days=created_reminder.repeat_days,
                 is_active=created_reminder.is_active,
-                
             )
         except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to create reminder: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create reminder: {str(e)}",
+            )
 
     async def get_reminders(self, user_id: str) -> List[ReminderResponse]:
         """Get all reminders for a user.

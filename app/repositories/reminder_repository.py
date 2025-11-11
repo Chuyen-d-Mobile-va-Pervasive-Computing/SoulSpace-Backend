@@ -14,11 +14,23 @@ class ReminderRepository:
     async def create(self, reminder: Reminder) -> Reminder:
         """Create a new reminder."""
         try:
-            result = await self.db.reminders.insert_one(reminder.dict(by_alias=True))
+            reminder_dict = reminder.dict(by_alias=True)
+            if isinstance(reminder_dict.get("_id"), str) and ObjectId.is_valid(reminder_dict["_id"]):
+                reminder_dict["_id"] = ObjectId(reminder_dict["_id"])
+            elif "_id" not in reminder_dict:
+                reminder_dict["_id"] = ObjectId()
+
+            if isinstance(reminder_dict.get("user_id"), str) and ObjectId.is_valid(reminder_dict["user_id"]):
+                reminder_dict["user_id"] = ObjectId(reminder_dict["user_id"])
+
+            result = await self.db.reminders.insert_one(reminder_dict)
             reminder.id = result.inserted_id
             return reminder
         except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to create reminder: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create reminder: {str(e)}",
+            )
 
     async def get_by_id(self, reminder_id: str) -> Optional[Reminder]:
         """Get a reminder by ID."""
