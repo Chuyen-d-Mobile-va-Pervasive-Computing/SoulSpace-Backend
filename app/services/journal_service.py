@@ -56,25 +56,48 @@ class JournalService:
         journal_dict = data.dict(exclude_unset=True)
         journal_dict["user_id"] = ObjectId(user_id)
 
+        # Collect all text sources for comprehensive sentiment analysis
+        text_sources = []
+        
+        # Process voice note if provided
         if data.voice_note_path:
             with open(data.voice_note_path, "rb") as f:
                 voice_text = await self.transcribe_audio(f.read())
             journal_dict["voice_text"] = voice_text
-            text = voice_text
-        elif data.text_content:
-            text = data.text_content
-        else:
-            text = ""
+            if voice_text and not voice_text.startswith("Transcription error"):
+                text_sources.append(voice_text)
+        
+        # Add text content if provided
+        if data.text_content:
+            text_sources.append(data.text_content)
+        
+        # Combine all text for sentiment analysis
+        combined_text = " ".join(text_sources).strip()
 
-        if text:
-            ai_label, ai_score = analyze_sentiment(text)
+        if combined_text:
+            # AI sentiment analysis on combined text
+            ai_label, ai_score = analyze_sentiment(combined_text)
+            
+            # User emotion from icon selection
             icon_label, icon_score = ICON_SENTIMENT_MAP.get(data.emotion_label, ("Neutral", 0.0))
-            label, score = ai_label, (ai_score + icon_score) / 2 if ai_label == icon_label else ai_score
+            
+            # Weighted combination: 70% AI + 30% user emotion
+            # Use AI label but blend scores for nuanced result
+            if ai_label == icon_label:
+                # Agreement: average both scores
+                score = (ai_score * 0.7) + (icon_score * 0.3)
+                label = ai_label
+            else:
+                # Disagreement: trust AI more but consider user input
+                score = (ai_score * 0.7) + (icon_score * 0.3)
+                # Use AI label unless user picked strong emotion (|icon_score| > 0.7)
+                label = icon_label if abs(icon_score) > 0.7 else ai_label
         else:
+            # No text: use only user emotion
             label, score = ICON_SENTIMENT_MAP.get(data.emotion_label, ("Neutral", 0.0))
 
         journal_dict["sentiment_label"] = label
-        journal_dict["sentiment_score"] = score
+        journal_dict["sentiment_score"] = round(score, 2)
         journal_dict["tags"] = data.tags or []  # Ensure tags is List[str]
         return await self.journal_repo.create(journal_dict)
 

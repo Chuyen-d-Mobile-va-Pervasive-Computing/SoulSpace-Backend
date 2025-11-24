@@ -29,61 +29,97 @@ def serialize_journal(journal) -> JournalResponse:
 
 @router.post("/", response_model=JournalResponse)
 async def create_journal(
-    request: Request,  # Thêm Request để debug và parse form data
-    voice_note: UploadFile = File(None),
+    request: Request,
+    audio: UploadFile = File(None, description="Optional audio recording (.mp3 or .m4a)"),  # FE gửi field 'audio'
     db=Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Create a new journal entry with optional voice note."""
+    """Create a new journal entry compatible với FE hiện tại.
+
+    FE gửi:
+      - text_content: string (bắt buộc)
+      - tags: JSON string của array [{tag_id, tag_name}]
+      - audio: file .m4a hoặc .mp3 (tuỳ chọn)
+      - (emotion_label hiện chưa gửi) => default 'Neutral' nếu thiếu / invalid
+    """
     form_data = await request.form()
 
-    # Tạo instance JournalCreate từ form data
+    # Parse tags: FE gửi JSON string của list object => map sang list tên
+    raw_tags = form_data.get("tags")
+    parsed_tags: Optional[List[str]] = None
+    if raw_tags:
+        try:
+            import json
+            tags_obj = json.loads(raw_tags)
+            if isinstance(tags_obj, list):
+                parsed_tags = []
+                for t in tags_obj:
+                    if isinstance(t, dict):
+                        name = t.get("tag_name") or t.get("name")
+                        if name:
+                            parsed_tags.append(str(name))
+            # Deduplicate & clean
+            if parsed_tags:
+                cleaned = []
+                for tag in parsed_tags:
+                    tag = tag.strip()
+                    if tag and tag not in cleaned:
+                        cleaned.append(tag)
+                parsed_tags = cleaned or None
+        except Exception:
+            # Nếu parse lỗi => bỏ qua tags
+            parsed_tags = None
+
+    emotion_label = form_data.get("emotion_label")
+    # FE không gửi => đặt mặc định Neutral
+    if not emotion_label or emotion_label not in ICON_SENTIMENT_MAP:
+        emotion_label = "Neutral"
+
     data = JournalCreate(
-        emotion_label=form_data.get("emotion_label"),
+        emotion_label=emotion_label,
         text_content=form_data.get("text_content"),
-        voice_note_path=None if not voice_note else "temp_path",  # Gán tạm để xử lý sau
-        tags=form_data.getlist("tags") if form_data.get("tags") else None
+        voice_note_path=None if not audio else "temp_path",
+        tags=parsed_tags
     )
 
     file_path: Optional[str] = None
     try:
-        # Validate inputs
-        if not data.emotion_label:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Emotion label is required")
-        if not data.text_content:
+        # Validate text_content
+        if not data.text_content or not data.text_content.strip():
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Text content is required")
-        if data.emotion_label not in ICON_SENTIMENT_MAP:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid emotion label")
-        if data.tags and any(len(tag) > 50 or not tag.strip() for tag in data.tags):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Each tag must be 1-50 characters and non-empty")
 
-        if voice_note:
-            file_extension = os.path.splitext(voice_note.filename)[1].lower()
-            if file_extension != ".mp3":
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only MP3 files are supported")
+        # Validate tags length
+        if data.tags and any(len(tag) > 50 for tag in data.tags):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Each tag must be <= 50 characters")
+
+        # Handle audio file (.mp3 / .m4a)
+        if audio:
+            file_extension = os.path.splitext(audio.filename)[1].lower()
+            if file_extension not in (".mp3", ".m4a"):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only MP3 or M4A files are supported")
             file_name = f"{uuid.uuid4()}{file_extension}"
             temp_dir = os.path.join(os.getcwd(), "temp")
             os.makedirs(temp_dir, exist_ok=True)
             file_path = os.path.join(temp_dir, file_name)
             with open(file_path, "wb") as f:
-                f.write(await voice_note.read())
+                f.write(await audio.read())
             data.voice_note_path = file_path
 
-        try:
-            service = JournalService(JournalRepository(db))
-            journal = await service.create_journal(str(current_user["_id"]), data)
-            if voice_note and os.path.exists(file_path):
-                os.remove(file_path)
-            return serialize_journal(journal)
-        except Exception as e:
-            if voice_note and os.path.exists(file_path):
-                os.remove(file_path)
-            raise
+        # Create journal
+        service = JournalService(JournalRepository(db))
+        journal = await service.create_journal(str(current_user["_id"]), data)
+        return serialize_journal(journal)
+    except HTTPException:
+        # Re-raise có kiểm soát
+        raise
     except Exception as e:
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
-        
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to create journal: {str(e)}")
+    finally:
+        if audio and file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception:
+                pass
 
 @router.get("/", response_model=List[JournalResponse])
 async def get_journals(

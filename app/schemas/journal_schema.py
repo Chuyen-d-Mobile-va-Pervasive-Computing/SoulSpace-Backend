@@ -4,9 +4,11 @@ from datetime import datetime
 
 # Schema request (client gửi lên)
 class JournalCreate(BaseModel):
-    emotion_label: str
-    text_content: str
+    # FE hiện tại chưa gửi emotion_label ở bước /next => cho phép optional
+    emotion_label: Optional[str] = None
+    text_content: Optional[str]
     voice_note_path: Optional[str] = None
+    # FE gửi tags dưới dạng JSON string của [{tag_id, tag_name}] => ta map thành List[str]
     tags: Optional[List[str]] = None
 
 # Schema response (server trả về)
