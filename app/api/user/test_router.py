@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from app.utils.pyobjectid import PyObjectId
 
-from app.schemas.test_schema import TestResponseSchema, TestQuestionResponseSchema, TestWithProgressResponseSchema
-from app.services.test_service import (
+from app.schemas.user.test_schema import TestResponseSchema, TestQuestionResponseSchema, TestWithProgressResponseSchema
+from app.services.user.test_service import (
     TestService,
     get_test_service,
     TestNotFoundError,
@@ -13,10 +13,10 @@ from app.services.test_service import (
 from app.core.dependencies import get_current_user
 from app.models.user_model import User
 
-from app.schemas.test_schema import TestResponseSchema, TestQuestionResponseSchema
-from app.schemas.user_test_result_schema import SubmitTestPayloadSchema, UserTestResultResponseSchema  ,  CompletedTestSummarySchema, UserTestResultDetailSchema
-from app.services.test_service import get_test_service
-from app.services.user_test_result_service import (
+from app.schemas.user.test_schema import TestResponseSchema, TestQuestionResponseSchema
+from app.schemas.user.user_test_result_schema import SubmitTestPayloadSchema, UserTestResultResponseSchema  ,  CompletedTestSummarySchema, UserTestResultDetailSchema
+from app.services.user.test_service import get_test_service
+from app.services.user.user_test_result_service import (
     UserTestResultService, get_user_test_result_service,
     TestNotFoundError, ResultNotFoundError, NotOwnerOfResultError,
     TestAlreadyCompletedError, AnswerCountMismatchError, InvalidOptionError,
@@ -24,7 +24,7 @@ from app.services.user_test_result_service import (
 )
 
 
-router = APIRouter(prefix="/tests", tags=["Psychological Tests"])
+router = APIRouter(prefix="/tests", tags=["👤 User - Psychological Tests (Trắc nghiệm tâm lý)"])
 
 @router.get(
     "",

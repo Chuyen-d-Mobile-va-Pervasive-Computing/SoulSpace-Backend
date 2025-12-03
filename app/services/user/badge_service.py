@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from typing import List
 from app.repositories.badge_repository import BadgeRepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.badge_schema import (
+from app.schemas.user.badge_schema import (
     UserBadgeResponse,
     BadgeResponse,
     AllBadgesResponse

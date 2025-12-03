@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Request
-from app.schemas.journal_schema import JournalCreate, JournalResponse
+from app.schemas.user.journal_schema import JournalCreate, JournalResponse
 from app.repositories.journal_repository import JournalRepository
-from app.services.journal_service import JournalService
+from app.services.user.journal_service import JournalService
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.constants import ICON_SENTIMENT_MAP
@@ -10,7 +10,7 @@ import uuid
 import os
 from time import time
 
-router = APIRouter(prefix="/journal", tags=["journal"])
+router = APIRouter(prefix="/journal", tags=["👤 User - Journal (Nhật ký)"])
 
 def serialize_journal(journal) -> JournalResponse:
     """Serialize Journal model to JournalResponse schema."""

@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends
-from app.schemas.anon_comment_schema import AnonCommentCreate, AnonCommentResponse
-from app.services.anon_comment_service import AnonCommentService
+from app.schemas.user.anon_comment_schema import AnonCommentCreate, AnonCommentResponse
+from app.services.user.anon_comment_service import AnonCommentService
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 
-router = APIRouter(prefix="/anon-comments", tags=["Anonymous Comments"])
+router = APIRouter(prefix="/anon-comments", tags=["👤 User - Anonymous Comments (Bình luận ẩn danh)"])
 
 @router.post("/", response_model=AnonCommentResponse)
 async def create_comment(payload: AnonCommentCreate, db=Depends(get_db), user=Depends(get_current_user)):

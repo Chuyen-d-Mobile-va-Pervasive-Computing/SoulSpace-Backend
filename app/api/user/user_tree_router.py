@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 
 from app.core.dependencies import get_current_user
-from app.schemas.user_tree_schema import (
+from app.schemas.user.user_tree_schema import (
     UserTreeResponseSchema, 
     WaterTreePayloadSchema,
     PositiveActionResponseSchema
 )
-from app.services.user_tree_service import (
+from app.services.user.user_tree_service import (
     UserTreeService,
     get_user_tree_service,
     PositiveActionNotFoundError,
@@ -15,7 +15,7 @@ from app.services.user_tree_service import (
     DatabaseOperationError
 )
 
-router = APIRouter(prefix="/tree", tags=["Relaxation Zone - Mental Tree"])
+router = APIRouter(prefix="/tree", tags=["👤 User - Mental Tree (Cây tinh thần)"])
 
 @router.get(
     "/status",

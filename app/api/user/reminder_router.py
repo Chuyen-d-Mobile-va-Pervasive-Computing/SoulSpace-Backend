@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
-from app.schemas.reminder_schema import ReminderCreate, ReminderUpdate, ReminderResponse
-from app.services.reminder_service import ReminderService
+from app.schemas.user.reminder_schema import ReminderCreate, ReminderUpdate, ReminderResponse
+from app.services.user.reminder_service import ReminderService
 from app.repositories.reminder_repository import ReminderRepository
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, timedelta
 
-router = APIRouter(prefix="/reminders", tags=["reminders"])
+router = APIRouter(prefix="/reminders", tags=["👤 User - Reminders (Nhắc nhở)"])
 
 # Initialize scheduler
 scheduler = AsyncIOScheduler()

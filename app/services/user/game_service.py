@@ -6,7 +6,7 @@ from app.models.game_session_model import GameSession
 from app.repositories.game_repository import GameRepository
 from app.repositories.user_repository import UserRepository
 from app.repositories.badge_repository import BadgeRepository
-from app.schemas.game_schema import (
+from app.schemas.user.game_schema import (
     GameCompleteRequest,
     GameCompleteResponse,
     BadgeInfo,

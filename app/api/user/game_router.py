@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
-from app.schemas.game_schema import (
+from app.schemas.user.game_schema import (
     GameCompleteRequest,
     GameCompleteResponse,
     QuestionResponse,
@@ -8,14 +8,14 @@ from app.schemas.game_schema import (
     CrosswordWordResponse,
     UserPointsResponse
 )
-from app.services.game_service import GameService
+from app.services.user.game_service import GameService
 from app.repositories.game_repository import GameRepository
 from app.repositories.user_repository import UserRepository
 from app.repositories.badge_repository import BadgeRepository
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 
-router = APIRouter(prefix="/game", tags=["Minigame"])
+router = APIRouter(prefix="/game", tags=["👤 User - Games (Trò chơi)"])
 
 def get_game_service(db=Depends(get_db)):
     game_repo = GameRepository(db)

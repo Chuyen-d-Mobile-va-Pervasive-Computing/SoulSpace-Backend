@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends
-from app.schemas.auth_schema import UserRegister, UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, UpdateUsernameRequest, TokenResponse
-from app.services.auth_service import AuthService
-from app.services.email_service import EmailService
+from app.schemas.common.auth_schema import UserRegister, UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, UpdateUsernameRequest, TokenResponse
+from app.services.common.auth_service import AuthService
+from app.services.common.email_service import EmailService
 from app.repositories.user_repository import UserRepository
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["🔐 Common - Authentication"])
 
 def get_auth_service(db=Depends(get_db)):
     user_repo = UserRepository(db)

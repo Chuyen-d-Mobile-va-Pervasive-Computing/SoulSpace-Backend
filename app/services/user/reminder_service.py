@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from bson import ObjectId
 from typing import List
 from app.models.reminder_model import Reminder
-from app.schemas.reminder_schema import ReminderCreate, ReminderUpdate, ReminderResponse
+from app.schemas.user.reminder_schema import ReminderCreate, ReminderUpdate, ReminderResponse
 from app.repositories.reminder_repository import ReminderRepository
 from datetime import datetime, timedelta
 # logging removed per user request

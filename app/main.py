@@ -3,16 +3,26 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import init_db, close_db
-from app.api.auth_router import router as auth_router
-from app.api.journal_router import router as journal_router
-from app.api.anon_post_router import router as anon_post_router
-from app.api.anon_comment_router import router as anon_comment_router
-from app.api.anon_like_router import router as anon_like_router
-from app.api.reminder_router import router as reminder_router
-from app.api.test_router import router as test_router
-from app.api.user_tree_router import router as user_tree_router
-from app.api.game_router import router as game_router
-from app.api.badge_router import router as badge_router
+
+# Common routers
+from app.api.common.auth_router import router as auth_router
+
+# User routers
+from app.api.user.journal_router import router as journal_router
+from app.api.user.anon_post_router import router as anon_post_router
+from app.api.user.anon_comment_router import router as anon_comment_router
+from app.api.user.anon_like_router import router as anon_like_router
+from app.api.user.reminder_router import router as reminder_router
+from app.api.user.test_router import router as test_router
+from app.api.user.user_tree_router import router as user_tree_router
+from app.api.user.game_router import router as game_router
+from app.api.user.badge_router import router as badge_router
+
+# Admin routers (placeholder)
+from app.api.admin.admin_router import router as admin_router
+
+# Expert routers (placeholder)
+from app.api.expert.expert_router import router as expert_router
 
 app = FastAPI(title="SoulSpace Backend")
 
@@ -25,7 +35,11 @@ app.add_middleware(
 )
 
 API_PREFIX = "/api/v1"
+
+# Common routes
 app.include_router(auth_router, prefix=API_PREFIX)
+
+# User routes
 app.include_router(journal_router, prefix=API_PREFIX)
 app.include_router(anon_post_router, prefix=API_PREFIX)
 app.include_router(anon_comment_router, prefix=API_PREFIX)
@@ -35,6 +49,12 @@ app.include_router(test_router, prefix=API_PREFIX)
 app.include_router(user_tree_router, prefix=API_PREFIX)
 app.include_router(game_router, prefix=API_PREFIX)
 app.include_router(badge_router, prefix=API_PREFIX)
+
+# Admin routes (placeholder)
+app.include_router(admin_router, prefix=API_PREFIX)
+
+# Expert routes (placeholder)
+app.include_router(expert_router, prefix=API_PREFIX)
 
 
 @app.on_event("startup")

@@ -1,7 +1,7 @@
 import asyncio
 from bson import ObjectId
 from app.repositories.journal_repository import JournalRepository
-from app.schemas.journal_schema import JournalCreate
+from app.schemas.user.journal_schema import JournalCreate
 from app.models.journal_model import Journal
 from app.core.constants import ICON_SENTIMENT_MAP
 from app.core.config import settings
@@ -16,7 +16,11 @@ if settings.SENTIMENT_MODEL.lower() == "roberta":
     SENTIMENT_MODEL = "cardiffnlp/twitter-roberta-base-sentiment"
 else:
     SENTIMENT_MODEL = "distilbert-base-uncased-finetuned-sst-2-english"
-sentiment_pipeline = pipeline("sentiment-analysis", model=SENTIMENT_MODEL)
+sentiment_pipeline = pipeline(
+    "sentiment-analysis",
+    model=SENTIMENT_MODEL,
+    framework="pt"  # Force PyTorch backend to avoid TensorFlow/Keras import
+)
 
 def analyze_sentiment(text: str):
     """Analyze sentiment of the given text."""

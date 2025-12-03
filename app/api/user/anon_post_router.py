@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
-from app.schemas.anon_post_schema import AnonPostCreate, AnonPostResponse
-from app.services.anon_post_service import AnonPostService
+from app.schemas.user.anon_post_schema import AnonPostCreate, AnonPostResponse
+from app.services.user.anon_post_service import AnonPostService
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 
-router = APIRouter(prefix="/anon-posts", tags=["Anonymous Posts"])
+router = APIRouter(prefix="/anon-posts", tags=["👤 User - Anonymous Posts (Bài viết ẩn danh)"])
 
 @router.post("/", response_model=AnonPostResponse)
 async def create_post(payload: AnonPostCreate, db=Depends(get_db), user=Depends(get_current_user)):

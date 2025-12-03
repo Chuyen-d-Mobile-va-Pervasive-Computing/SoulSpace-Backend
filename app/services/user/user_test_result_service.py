@@ -6,7 +6,7 @@ from bson import ObjectId
 from app.core.database import get_db
 from app.repositories.test_repository import TestRepository
 from app.repositories.user_test_result_repository import UserTestResultRepository
-from app.schemas.user_test_result_schema import SubmitTestPayloadSchema
+from app.schemas.user.user_test_result_schema import SubmitTestPayloadSchema
 from app.core.dependencies import get_test_repository, get_user_test_result_repository
 
 logging.basicConfig(level=logging.INFO)
