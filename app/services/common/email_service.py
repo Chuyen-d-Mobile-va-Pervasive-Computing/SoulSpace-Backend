@@ -121,3 +121,100 @@ class EmailService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to send OTP email: {str(e)}"
             )
+
+    async def notify_admin_new_expert(self, expert_email: str, expert_name: str):
+        """Notify admin when new expert submits profile."""
+        admin_email = settings.EMAIL_USER  # Hoặc email admin cố định
+        
+        message = MIMEMultipart()
+        message["From"] = f"SoulSpace <{self.email_user}>"
+        message["To"] = admin_email
+        message["Subject"] = f"🔔 New Expert Registration: {expert_name}"
+        
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2>New Expert Registration</h2>
+            <p>A new expert has submitted their profile for review:</p>
+            <ul>
+                <li><strong>Name:</strong> {expert_name}</li>
+                <li><strong>Email:</strong> {expert_email}</li>
+            </ul>
+            <p>Please review and approve/reject in the admin panel.</p>
+            <p style="color: #888; font-size: 12px;">© {datetime.datetime.now().year} SoulSpace</p>
+        </body>
+        </html>
+        """
+        message.attach(MIMEText(html_body, "html"))
+        
+        try:
+            with smtplib.SMTP(self.email_host, self.email_port) as server:
+                server.starttls()
+                server.login(self.email_user, self.email_password)
+                server.send_message(message)
+        except Exception as e:
+            # Log but don't fail the request
+            print(f"Failed to send admin notification: {e}")
+
+    async def notify_expert_approved(self, expert_email: str, expert_name: str):
+        """Notify expert when their application is approved."""
+        message = MIMEMultipart()
+        message["From"] = f"SoulSpace <{self.email_user}>"
+        message["To"] = expert_email
+        message["Subject"] = "✅ Your Expert Application Has Been Approved!"
+        
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2>Congratulations, {expert_name}!</h2>
+            <p>Your expert application has been <strong style="color: green;">approved</strong>.</p>
+            <p>You can now log in to the SoulSpace platform and start providing consultations.</p>
+            <p>Thank you for joining our community!</p>
+            <p style="color: #888; font-size: 12px;">© {datetime.datetime.now().year} SoulSpace</p>
+        </body>
+        </html>
+        """
+        message.attach(MIMEText(html_body, "html"))
+        
+        try:
+            with smtplib.SMTP(self.email_host, self.email_port) as server:
+                server.starttls()
+                server.login(self.email_user, self.email_password)
+                server.send_message(message)
+        except Exception as e:
+            print(f"Failed to send approval notification: {e}")
+
+    async def notify_expert_rejected(self, expert_email: str, expert_name: str, reason: str = None):
+        """Notify expert when their application is rejected."""
+        message = MIMEMultipart()
+        message["From"] = f"SoulSpace <{self.email_user}>"
+        message["To"] = expert_email
+        message["Subject"] = "❌ Your Expert Application Status"
+        
+        reason_text = f"<p><strong>Reason:</strong> {reason}</p>" if reason else ""
+        
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2>Dear {expert_name},</h2>
+            <p>We regret to inform you that your expert application has been <strong style="color: red;">rejected</strong>.</p>
+            {reason_text}
+            <p>You can resubmit your application after addressing the issues mentioned.</p>
+            <p>If you have questions, please contact our support team.</p>
+            <p style="color: #888; font-size: 12px;">© {datetime.datetime.now().year} SoulSpace</p>
+        </body>
+        </html>
+        """
+        message.attach(MIMEText(html_body, "html"))
+        
+        try:
+            with smtplib.SMTP(self.email_host, self.email_port) as server:
+                server.starttls()
+                server.login(self.email_user, self.email_password)
+                server.send_message(message)
+        except Exception as e:
+            print(f"Failed to send rejection notification: {e}")
+

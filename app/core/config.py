@@ -13,6 +13,15 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     ASSEMBLYAI_API_KEY: str
+    
+    # ===== CLOUDINARY =====
+    CLOUDINARY_CLOUD_NAME: str
+    CLOUDINARY_API_KEY: str
+    CLOUDINARY_API_SECRET: str
+    
+    # File size limits
+    MAX_AVATAR_SIZE: int = 2 * 1024 * 1024  # 2MB
+    MAX_CERTIFICATE_SIZE: int = 5 * 1024 * 1024  # 5MB
 
     class Config:
         env_file = ".env"

@@ -21,6 +21,8 @@ class UserRepository:
                 "total_points": user.total_points,
                 "reset_otp": user.reset_otp,
                 "reset_otp_expiry": user.reset_otp_expiry,
+                "expert_profile_id": user.expert_profile_id,
+                "expert_status": user.expert_status,
             }
             
             result = await self.db.users.insert_one(user_data_to_insert)

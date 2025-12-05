@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
-from app.schemas.common.auth_schema import UserRegister, UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, UpdateUsernameRequest, TokenResponse
-from app.services.common.auth_service import AuthService
+from app.schemas.user.auth_schema import UserRegister, UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, UpdateUsernameRequest, TokenResponse
+from app.services.user.auth_service import AuthService
 from app.services.common.email_service import EmailService
 from app.repositories.user_repository import UserRepository
 from app.core.database import get_db
