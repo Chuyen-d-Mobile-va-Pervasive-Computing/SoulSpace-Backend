@@ -5,8 +5,7 @@ from app.core.config import settings
 from app.core.database import init_db, close_db
 
 # Common routers
-from app.api.user_admin_auth_router import router as user_admin_auth_router
-from app.api.expert.expert_auth_router import router as expert_auth_router
+from app.api.common.auth_router import router as auth_router
 
 # User routers
 from app.api.user.journal_router import router as journal_router
@@ -20,9 +19,8 @@ from app.api.user.game_router import router as game_router
 from app.api.user.badge_router import router as badge_router
 from app.api.user.report_router import router as report_router
 
-# Admin routers
+# Admin routers (placeholder)
 from app.api.admin.admin_router import router as admin_router
-from app.api.admin.expert_management_router import router as expert_management_router
 
 # Expert routers (placeholder)
 from app.api.expert.expert_router import router as expert_router
@@ -40,8 +38,7 @@ app.add_middleware(
 API_PREFIX = "/api/v1"
 
 # Common routes
-app.include_router(user_admin_auth_router, prefix=API_PREFIX)
-app.include_router(expert_auth_router, prefix=API_PREFIX)
+app.include_router(auth_router, prefix=API_PREFIX)
 
 # User routes
 app.include_router(journal_router, prefix=API_PREFIX)
@@ -55,9 +52,8 @@ app.include_router(game_router, prefix=API_PREFIX)
 app.include_router(report_router, prefix=API_PREFIX)
 app.include_router(badge_router, prefix=API_PREFIX)
 
-# Admin routes
+# Admin routes (placeholder)
 app.include_router(admin_router, prefix=API_PREFIX)
-app.include_router(expert_management_router, prefix=API_PREFIX)
 
 # Expert routes (placeholder)
 app.include_router(expert_router, prefix=API_PREFIX)

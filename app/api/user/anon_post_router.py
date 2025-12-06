@@ -9,7 +9,12 @@ router = APIRouter(prefix="/anon-posts", tags=["👤 User - Anonymous Posts (Bà
 @router.post("/", response_model=AnonPostResponse)
 async def create_post(payload: AnonPostCreate, db=Depends(get_db), user=Depends(get_current_user)):
     service = AnonPostService(db)
-    post = await service.create_post(user_id=user["_id"], content=payload.content)
+    post = await service.create_post(
+        user_id=user["_id"], 
+        content=payload.content,
+        is_anonymous=payload.is_anonymous,
+        hashtags=payload.hashtags
+    )
     return post
 
 @router.get("/", response_model=list[AnonPostResponse])
