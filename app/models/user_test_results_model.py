@@ -4,27 +4,28 @@ from datetime import datetime
 from typing import List, Optional
 from app.utils.pyobjectid import PyObjectId
 
-class Answer(BaseModel):
+class SnapshotQuestion(BaseModel):
     question_id: PyObjectId
-    option_id: PyObjectId
-    score_value: int
+    question_text: str
+    selected_option_id: str
+    selected_option_text: str
+    score: int
+
+class TestSnapshot(BaseModel):
+    test_title: str
+    test_code: str
+    questions: List[SnapshotQuestion]
 
 class UserTestResult(BaseModel):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     user_id: PyObjectId
     test_id: PyObjectId
-    test_code: str
-    status: str = Field(default="in-progress") # "in-progress" hoặc "completed"
-    started_at: datetime = Field(default_factory=datetime.utcnow)
-    completed_at: Optional[datetime] = None # Chỉ có giá trị khi status là "completed"
-
-    total_score: Optional[int] = None
-    severity_level: Optional[str] = Field(None, max_length=50)
-    result_label: Optional[str] = Field(None, max_length=100)
-    guidance_notes: Optional[str] = Field(None, max_length=1000)
-    needs_expert: Optional[bool] = None
-    
-    answers: List[Answer]
+    test_snapshot: TestSnapshot
+    total_score: int
+    result_level: str
+    feedback: Optional[str] = None
+    completed_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
 
     class Config:
         populate_by_name = True

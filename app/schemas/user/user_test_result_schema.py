@@ -1,9 +1,31 @@
 from pydantic import BaseModel, Field
-from datetime import datetime
 from typing import List, Optional
+from datetime import datetime
 from app.utils.pyobjectid import PyObjectId
-from bson import ObjectId 
-from .test_schema import TestQuestionResponseSchema 
+from bson import ObjectId  # <--- Thêm dòng này
+
+class SnapshotQuestionSchema(BaseModel):
+    question_id: PyObjectId
+    question_text: str
+    selected_option_id: str
+    selected_option_text: str
+    score: int
+
+class TestSnapshotSchema(BaseModel):
+    test_title: str
+    test_code: str
+    questions: List[SnapshotQuestionSchema]
+
+class UserTestResultSchema(BaseModel):
+    id: PyObjectId = Field(alias="_id")
+    user_id: PyObjectId
+    test_id: PyObjectId
+    test_snapshot: TestSnapshotSchema
+    total_score: int
+    result_level: str
+    feedback: Optional[str] = None
+    completed_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
 
 class SubmitAnswerSchema(BaseModel):
     question_id: PyObjectId

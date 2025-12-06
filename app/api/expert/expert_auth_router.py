@@ -39,27 +39,3 @@ async def login_expert(
     return await service.login_expert(credentials.email, credentials.password)
 
 
-@router.post(
-    "/upload/avatar",
-    response_model=FileUploadResponse,
-    status_code=200
-)
-async def upload_avatar(
-    file: UploadFile = File(...),
-    service: CloudinaryService = Depends(get_cloudinary_service)
-):
-    """Upload avatar to Cloudinary"""
-    return await service.upload_avatar(file)
-
-
-@router.post(
-    "/upload/certificate",
-    response_model=FileUploadResponse,
-    status_code=200
-)
-async def upload_certificate(
-    file: UploadFile = File(...),
-    service: CloudinaryService = Depends(get_cloudinary_service)
-):
-    """Upload certificate to Cloudinary"""
-    return await service.upload_certificate(file)

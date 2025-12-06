@@ -3,9 +3,11 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from fastapi import Depends
 
 from app.repositories.test_repository import TestRepository
+from app.repositories.user_test_result_repository import UserTestResultRepository
+from bson import ObjectId
+from typing import List
 from app.core.database import get_db
 from app.utils.pyobjectid import PyObjectId 
-from app.repositories.user_test_result_repository import UserTestResultRepository
 from app.core.dependencies import get_test_repository, get_user_test_result_repository
 
 class TestNotFoundError(Exception):
@@ -26,6 +28,13 @@ class TestService:
     async def get_all_tests(self):
         try:
             tests = await self.test_repo.get_all_tests()
+            for test in tests:
+                # Always add num_questions for schema validation
+                questions = test.get("questions")
+                if questions is not None:
+                    test["num_questions"] = len(questions)
+                else:
+                    test["num_questions"] = 0
             return tests
         except Exception as e:
             raise DatabaseOperationError(f"A database error occurred: {e}")
@@ -91,8 +100,56 @@ class TestService:
         except Exception as e:
             raise DatabaseOperationError(f"A database error occurred while fetching tests with progress: {e}")
 
+class UserTestService:
+    def __init__(self, test_repo: TestRepository, result_repo: UserTestResultRepository):
+        self.test_repo = test_repo
+        self.result_repo = result_repo
+
+    async def get_all_tests(self):
+        # Chỉ trả về test chưa bị xóa
+        tests = await self.test_repo.collection.find({"is_deleted": False}).to_list(length=None)
+        # Đếm số lượng câu hỏi cho từng test
+        from app.repositories.test_question_repository import TestQuestionRepository
+        question_repo = TestQuestionRepository(self.test_repo.collection.database)
+        for test in tests:
+            test_id = test.get("_id")
+            if test_id:
+                num_questions = await question_repo.collection.count_documents({"test_id": test_id, "is_deleted": False})
+                test["num_questions"] = num_questions
+            else:
+                test["num_questions"] = 0
+        return tests
+
+    def _convert_objectid_to_str(self, obj):
+        # Recursively convert all ObjectId in dict/list to string
+        from bson import ObjectId
+        if isinstance(obj, dict):
+            return {k: self._convert_objectid_to_str(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_objectid_to_str(i) for i in obj]
+        elif isinstance(obj, ObjectId):
+            return str(obj)
+        else:
+            return obj
+
+    async def get_test_questions(self, test_code: str):
+        test = await self.test_repo.get_test_by_code(test_code)
+        if not test or test.get("is_deleted"):
+            return []
+        from app.repositories.test_question_repository import TestQuestionRepository
+        question_repo = TestQuestionRepository(self.test_repo.collection.database)
+        questions = await question_repo.get_questions_by_test_id(test["_id"], include_deleted=False)
+        return self._convert_objectid_to_str(questions)
+
+
 def get_test_repository(db: AsyncIOMotorDatabase = Depends(get_db)) -> TestRepository:
     return TestRepository(database=db)
+
+def get_user_test_service(
+    test_repo: TestRepository = Depends(get_test_repository),
+    user_test_result_repo: UserTestResultRepository = Depends(get_user_test_result_repository)
+) -> UserTestService:
+    return UserTestService(test_repo=test_repo, result_repo=user_test_result_repo)
 
 def get_test_service(
     test_repo: TestRepository = Depends(get_test_repository),

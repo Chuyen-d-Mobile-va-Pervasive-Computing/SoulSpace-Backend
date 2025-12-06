@@ -23,10 +23,13 @@ from app.api.user.report_router import router as report_router
 # Admin routers
 from app.api.admin.admin_router import router as admin_router
 from app.api.admin.expert_management_router import router as expert_management_router
+from app.api.admin.test_router import router as admin_test_router
+from app.api.common.cloudinary_router import router as cloudinary_router
 
-# Expert routers (placeholder)
+# Expert routers
 from app.api.expert.expert_router import router as expert_router
 
+# ==== APP INIT ====
 app = FastAPI(title="SoulSpace Backend")
 
 app.add_middleware(
@@ -39,6 +42,7 @@ app.add_middleware(
 
 API_PREFIX = "/api/v1"
 
+# ==== ROUTER REGISTRATION ====
 # Common routes
 app.include_router(user_admin_auth_router, prefix=API_PREFIX)
 app.include_router(expert_auth_router, prefix=API_PREFIX)
@@ -58,11 +62,13 @@ app.include_router(badge_router, prefix=API_PREFIX)
 # Admin routes
 app.include_router(admin_router, prefix=API_PREFIX)
 app.include_router(expert_management_router, prefix=API_PREFIX)
+app.include_router(admin_test_router, prefix=API_PREFIX)
+app.include_router(cloudinary_router, prefix=API_PREFIX)
 
-# Expert routes (placeholder)
+# Expert routes
 app.include_router(expert_router, prefix=API_PREFIX)
 
-
+# ==== APP EVENTS ====
 @app.on_event("startup")
 async def startup_event():
     await init_db()
@@ -71,6 +77,7 @@ async def startup_event():
 async def shutdown_event():
     await close_db()
 
+# ==== MAIN ENTRYPOINT ====
 if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",

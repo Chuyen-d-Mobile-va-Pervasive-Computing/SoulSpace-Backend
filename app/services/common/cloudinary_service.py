@@ -80,6 +80,13 @@ class CloudinaryService:
         
         logger.info(f"✓ Avatar uploaded: {result['public_id']}")
         
+        if "secure_url" not in result:
+            logger.error(f"Cloudinary upload missing secure_url: {result}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Upload failed: {result}",
+                headers={"X-Error-Code": "E013"}
+            )
         return {
             "url": result["secure_url"],
             "public_id": result["public_id"],
@@ -88,7 +95,6 @@ class CloudinaryService:
             "height": result.get("height"),
             "size": result.get("bytes")
         }
-    
     async def upload_certificate(self, file: UploadFile) -> Dict:
         """Upload certificate to Cloudinary"""
         

@@ -42,6 +42,40 @@ async def get_current_user(
         )
 
 
+async def get_current_admin(
+    credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme)
+):
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
+        user_id: str = payload.get("sub")
+        role: str = payload.get("role")
+        if user_id is None or role is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin privileges required",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return {"_id": ObjectId(user_id), "role": role}
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+# Expert role dependency
+async def get_current_expert(user=Depends(get_current_user)):
+    if user["role"] != "expert":
+        raise HTTPException(status_code=403, detail="Not expert")
+    return user
+        
 def get_test_repository(db: AsyncIOMotorDatabase = Depends(get_db)) -> TestRepository:
     return TestRepository(database=db)
 
