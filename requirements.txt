@@ -17,3 +17,4 @@ email-validator
 transformers==4.56.1
 torch
 assemblyai
+python-multipart

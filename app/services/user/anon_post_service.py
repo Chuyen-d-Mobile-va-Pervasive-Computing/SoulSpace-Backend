@@ -3,14 +3,16 @@ from datetime import datetime
 from app.repositories.anon_post_repository import AnonPostRepository
 from app.models.anon_post_model import AnonPost
 from app.repositories.moderation_log_repository import ModerationLogRepository
+from app.services.common.notification_service import NotificationService
 
 class AnonPostService:
     def __init__(self, db):
         self.post_repo = AnonPostRepository(db)
         self.log_repo = ModerationLogRepository(db)
         self.keywords_collection = db["sensitive_keywords"]
+        self.notification_service = NotificationService(db)
 
-    async def create_post(self, user_id: str, content: str):
+    async def create_post(self, user_id: str, content: str, is_anonymous: bool = True, hashtags: list[str] = []):
         detected = []
         action = "Approved"
         scan_result = "Safe"
@@ -63,6 +65,8 @@ class AnonPostService:
         post_data = AnonPost(
             user_id=user_id,
             content=content,
+            is_anonymous=is_anonymous,
+            hashtags=hashtags,
             created_at=datetime.utcnow(),
             moderation_status=action,
             ai_scan_result=scan_result,
@@ -83,6 +87,22 @@ class AnonPostService:
             action=action
         )
         new_post["detected_keywords"] = detected
+
+        # --- Notification Logic ---
+        if action == "Blocked":
+            await self.notification_service.create_notification(
+                user_id=user_id,
+                title="Bài viết bị chặn",
+                message=f"Bài viết của bạn đã bị chặn vì lý do: {flagged_reason}. Nếu bạn cần giúp đỡ, hãy liên hệ với chuyên gia.",
+                type="alert"
+            )
+        elif action == "Pending":
+             await self.notification_service.create_notification(
+                user_id=user_id,
+                title="Bài viết đang chờ duyệt",
+                message=f"Bài viết của bạn có nội dung cần xem xét: {flagged_reason}. Chúng tôi sẽ thông báo khi có kết quả.",
+                type="system"
+            )
         
         return new_post
     

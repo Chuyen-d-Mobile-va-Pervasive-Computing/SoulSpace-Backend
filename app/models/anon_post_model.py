@@ -7,6 +7,8 @@ class AnonPost(BaseModel):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     user_id: PyObjectId = Field(...)
     content: str = Field(..., min_length=1)
+    is_anonymous: bool = True
+    hashtags: list[str] = []
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     moderation_status: str = Field(default="Pending")  # Approved | Pending | Blocked

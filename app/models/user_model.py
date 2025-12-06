@@ -9,7 +9,7 @@ class User(BaseModel):
     username: str
     email: EmailStr
     password: str
-    role: Literal["user", "admin"] = "user"
+    role: Literal["user", "admin", "expert"] = "user"
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_login_at: Optional[datetime] = None
     total_points: int = 0
