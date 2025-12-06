@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from datetime import datetime, timedelta
 from app.models.user_model import User
-from app.schemas.common.auth_schema import UserRegister, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, UpdateUsernameRequest, TokenResponse
+from app.schemas.user.auth_schema import UserRegister, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, UpdateUsernameRequest, TokenResponse
 from app.repositories.user_repository import UserRepository
 from app.core.security import hash_password, verify_password, create_access_token
 from app.services.common.email_service import EmailService
