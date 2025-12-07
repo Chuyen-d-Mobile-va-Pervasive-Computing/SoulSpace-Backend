@@ -76,3 +76,27 @@ class UpdateUsernameRequest(BaseModel):
         if len(v) < 3:
             raise ValueError("Username must be at least 3 characters long")
         return v
+
+
+class UpdateAvatarRequest(BaseModel):
+    """Schema cập nhật avatar"""
+    avatar_url: str = Field(..., description="URL avatar từ Cloudinary")
+
+    @validator("avatar_url")
+    def validate_url(cls, v):
+        if not v.startswith("http"):
+            raise ValueError("Avatar URL must be a valid HTTP/HTTPS URL")
+        return v
+
+
+class UpdateProfileRequest(BaseModel):
+    """Schema cập nhật thông tin profile"""
+    username: Optional[str] = Field(None, min_length=3, max_length=30)
+    avatar_url: Optional[str] = None
+
+    @validator("username")
+    def validate_username(cls, v):
+        if v and not re.match(r"^[a-zA-Z0-9_]+$", v):
+            raise ValueError("Username must contain only letters, numbers, and underscores")
+        return v
+
