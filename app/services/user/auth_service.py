@@ -1,7 +1,11 @@
 from fastapi import HTTPException, status
 from datetime import datetime, timedelta
 from app.models.user_model import User
-from app.schemas.user.auth_schema import UserRegister, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, UpdateUsernameRequest, TokenResponse
+from app.schemas.user.auth_schema import (
+    UserRegister, UserResponse, ForgotPasswordRequest, 
+    ResetPasswordRequest, ChangePasswordRequest, 
+    UpdateUsernameRequest, TokenResponse, UpdateProfileRequest
+)
 from app.repositories.user_repository import UserRepository
 from app.core.security import hash_password, verify_password, create_access_token
 from app.services.common.email_service import EmailService
@@ -122,3 +126,64 @@ class AuthService:
             return {"message": "Username updated successfully", "username": update_data.new_username}
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update username: {str(e)}")
+
+    async def update_avatar(self, user_id: str, avatar_url: str):
+        """Cập nhật avatar cho user."""
+        user = await self.user_repo.get_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        try:
+            await self.user_repo.update(user_id, {"avatar_url": avatar_url})
+            return {"message": "Avatar updated successfully", "avatar_url": avatar_url}
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update avatar: {str(e)}")
+
+    async def update_profile(self, user_id: str, update_data: UpdateProfileRequest):
+        """Cập nhật thông tin profile (username, avatar)."""
+        user = await self.user_repo.get_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        update_fields = {}
+        
+        # Check username nếu có thay đổi
+        if update_data.username:
+            existing_user = await self.user_repo.get_by_username(update_data.username)
+            if existing_user and str(existing_user.id) != user_id:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists")
+            update_fields["username"] = update_data.username
+        
+        # Check avatar
+        if update_data.avatar_url:
+            update_fields["avatar_url"] = update_data.avatar_url
+
+        if not update_fields:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
+
+        try:
+            await self.user_repo.update(user_id, update_fields)
+            return {
+                "message": "Profile updated successfully",
+                "updated_fields": list(update_fields.keys())
+            }
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update profile: {str(e)}")
+
+    async def get_user_profile(self, user_id: str):
+        """Lấy thông tin profile của user."""
+        user = await self.user_repo.get_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        return {
+            "id": str(user.id),
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+            "avatar_url": getattr(user, 'avatar_url', None),
+            "total_points": user.total_points,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None
+        }
+

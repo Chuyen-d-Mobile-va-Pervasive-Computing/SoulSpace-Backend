@@ -1,10 +1,11 @@
 from functools import lru_cache
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from app.core.config import settings
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from typing import Optional
 
 from app.core.database import get_db
 from app.repositories.test_repository import TestRepository
@@ -17,6 +18,7 @@ from app.services.expert.expert_auth_service import ExpertAuthService
 from app.services.admin.admin_expert_service import AdminExpertService
 
 oauth2_scheme = HTTPBearer()
+oauth2_scheme_optional = HTTPBearer(auto_error=False)
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme)
@@ -40,6 +42,29 @@ async def get_current_user(
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(oauth2_scheme_optional)
+) -> Optional[dict]:
+    """
+    Get current user if authenticated, otherwise return None.
+    Use this for endpoints that work for both authenticated and unauthenticated users.
+    """
+    if credentials is None:
+        return None
+    
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
+        user_id: str = payload.get("sub")
+        role: str = payload.get("role")
+        
+        if user_id is None or role is None:
+            return None
+        return {"_id": ObjectId(user_id), "role": role}
+    except JWTError:
+        return None
 
 
 async def get_current_admin(

@@ -1,5 +1,6 @@
 import re
 from datetime import datetime
+from typing import Optional
 from app.repositories.anon_post_repository import AnonPostRepository
 from app.models.anon_post_model import AnonPost
 from app.repositories.moderation_log_repository import ModerationLogRepository
@@ -7,12 +8,18 @@ from app.services.common.notification_service import NotificationService
 
 class AnonPostService:
     def __init__(self, db):
+        self.db = db
         self.post_repo = AnonPostRepository(db)
         self.log_repo = ModerationLogRepository(db)
         self.keywords_collection = db["sensitive_keywords"]
         self.notification_service = NotificationService(db)
 
     async def create_post(self, user_id: str, content: str, is_anonymous: bool = True, hashtags: list[str] = []):
+        """
+        Tạo bài viết mới.
+        - is_anonymous=True: Đăng ẩn danh
+        - is_anonymous=False: Đăng bằng tên tài khoản
+        """
         detected = []
         action = "Approved"
         scan_result = "Safe"
@@ -86,7 +93,10 @@ class AnonPostService:
             detected_keywords=detected,
             action=action
         )
-        new_post["detected_keywords"] = detected
+        
+        # Enrich post với author info
+        enriched_post = await self.post_repo._enrich_post(new_post, str(user_id))
+        enriched_post["detected_keywords"] = detected
 
         # --- Notification Logic ---
         if action == "Blocked":
@@ -104,18 +114,44 @@ class AnonPostService:
                 type="system"
             )
         
-        return new_post
+        return enriched_post
+
+    async def list_posts(self, limit: int = 20, current_user_id: Optional[str] = None) -> list:
+        """
+        Lấy danh sách bài viết đã được duyệt.
+        Nếu có current_user_id, sẽ check is_liked và is_owner.
+        """
+        return await self.post_repo.list(limit=limit, current_user_id=current_user_id)
+
+    async def get_my_posts(self, user_id: str, limit: int = 50) -> list:
+        """
+        Lấy tất cả bài viết của user (bao gồm Pending, Blocked).
+        """
+        return await self.post_repo.list_by_user(user_id=user_id, limit=limit)
+
+    async def get_post_detail(self, post_id: str, current_user_id: Optional[str] = None) -> dict:
+        """
+        Lấy chi tiết một bài viết với author info.
+        """
+        return await self.post_repo.get_by_id_with_author(post_id=post_id, current_user_id=current_user_id)
     
     async def delete_post(self, user_id: str, post_id: str):
-        # Lấy và xóa bài viết
-        post = await self.post_repo.delete(post_id)
+        """Xóa bài viết (chỉ owner mới được xóa)."""
+        # Kiểm tra quyền sở hữu
+        post = await self.post_repo.get_by_id(post_id)
+        if str(post.get("user_id")) != str(user_id):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=403, detail="You can only delete your own posts")
+        
+        # Xóa bài viết
+        deleted_post = await self.post_repo.delete(post_id)
 
         # Ghi log moderation
         await self.log_repo.create_log(
             content_id=post_id,
             content_type="post",
             user_id=user_id,
-            text=post["content"],
+            text=deleted_post["content"],
             detected_keywords=[],
             action="Deleted"
         )

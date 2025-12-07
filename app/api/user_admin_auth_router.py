@@ -1,5 +1,10 @@
 from fastapi import APIRouter, Depends
-from app.schemas.user.auth_schema import UserRegister, UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest, UpdateUsernameRequest, TokenResponse
+from app.schemas.user.auth_schema import (
+    UserRegister, UserLogin, UserResponse, 
+    ForgotPasswordRequest, ResetPasswordRequest, 
+    ChangePasswordRequest, UpdateUsernameRequest, 
+    TokenResponse, UpdateAvatarRequest, UpdateProfileRequest
+)
 from app.services.user.auth_service import AuthService
 from app.services.common.email_service import EmailService
 from app.repositories.user_repository import UserRepository
@@ -48,3 +53,42 @@ async def update_username(
 ):
     result = await service.update_username(str(current_user["_id"]), update_data)
     return result
+
+
+@router.post("/update-avatar")
+async def update_avatar(
+    update_data: UpdateAvatarRequest,
+    service: AuthService = Depends(get_auth_service),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Cập nhật avatar cho user.
+    Avatar URL phải được upload lên Cloudinary trước.
+    """
+    result = await service.update_avatar(str(current_user["_id"]), update_data.avatar_url)
+    return result
+
+
+@router.put("/update-profile")
+async def update_profile(
+    update_data: UpdateProfileRequest,
+    service: AuthService = Depends(get_auth_service),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Cập nhật thông tin profile (username và/hoặc avatar).
+    """
+    result = await service.update_profile(str(current_user["_id"]), update_data)
+    return result
+
+
+@router.get("/me")
+async def get_current_user_info(
+    service: AuthService = Depends(get_auth_service),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Lấy thông tin user hiện tại.
+    """
+    return await service.get_user_profile(str(current_user["_id"]))
+
