@@ -2,7 +2,8 @@
 Admin role API endpoints.
 These endpoints are for admin-only operations.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Security
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr, Field, validator
 from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
@@ -19,6 +20,10 @@ from app.schemas.expert.expert_article_schema import ExpertArticleResponse
 from bson import ObjectId
 from datetime import datetime
 import re
+
+
+# Security scheme for Swagger UI lock icon
+security = HTTPBearer()
 
 
 # Schema for creating admin/expert by admin
@@ -45,7 +50,12 @@ class CreateUserByAdminRequest(BaseModel):
 CreateAdminRequest = CreateUserByAdminRequest
 
 
-router = APIRouter(prefix="/admin", tags=["🔧 Admin - Management (Quản trị)"])
+# Router với Security dependency - Swagger sẽ hiển thị 🔒
+router = APIRouter(
+    prefix="/admin", 
+    tags=["🔧 Admin - Management (Quản trị)"],
+    dependencies=[Security(security)]  # Thêm lock icon cho tất cả endpoints
+)
 
 @router.get("/health")
 async def admin_health_check():

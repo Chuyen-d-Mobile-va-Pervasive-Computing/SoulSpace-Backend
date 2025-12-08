@@ -33,7 +33,16 @@ def require_role(*allowed_roles: Role):
     """
     def decorator(func):
         @wraps(func)
-        async def wrapper(*args, current_user: dict = Depends(get_current_user), **kwargs):
+        async def wrapper(*args, **kwargs):
+            # Get current_user from kwargs (injected by endpoint's Depends)
+            current_user = kwargs.get("current_user")
+            
+            if not current_user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Authentication required"
+                )
+            
             user_role = current_user.get("role", "user")
             
             # Convert allowed_roles to strings for comparison
@@ -45,7 +54,7 @@ def require_role(*allowed_roles: Role):
                     detail=f"Access denied. Required roles: {', '.join(allowed_role_strings)}"
                 )
             
-            return await func(*args, current_user=current_user, **kwargs)
+            return await func(*args, **kwargs)
         return wrapper
     return decorator
 
