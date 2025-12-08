@@ -6,7 +6,8 @@ import re
 class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
-    role: Optional[Literal["user", "admin"]] = "user"
+    # Role không được chọn khi register - mặc định là "user"
+    # Admin chỉ có thể được tạo bởi admin khác
 
     @validator("password")
     def validate_password(cls, v):

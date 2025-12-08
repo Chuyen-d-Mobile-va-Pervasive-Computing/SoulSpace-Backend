@@ -19,5 +19,5 @@ class ReportService:
         
         return await self.repo.create(report_data)
 
-    async def list_reports(self):
-        return await self.repo.list()
+    async def list_reports(self, status: str = None):
+        return await self.repo.list(status=status)

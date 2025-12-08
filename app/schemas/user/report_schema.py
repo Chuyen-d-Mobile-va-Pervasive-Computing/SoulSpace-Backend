@@ -1,7 +1,8 @@
 from pydantic import BaseModel, Field
 from bson import ObjectId
 from app.utils.pyobjectid import PyObjectId
-from typing import Literal
+from typing import Literal, Optional
+from datetime import datetime
 
 class ReportCreate(BaseModel):
     target_id: str = Field(...)
@@ -10,11 +11,14 @@ class ReportCreate(BaseModel):
 
 class ReportResponse(BaseModel):
     id: PyObjectId = Field(alias="_id")
+    reporter_id: Optional[PyObjectId] = None
     target_id: PyObjectId
     target_type: str
     reason: str
     status: str
+    created_at: Optional[datetime] = None
 
     class Config:
         json_encoders = {ObjectId: str}
-        validate_by_name = True
+        populate_by_name = True
+        extra = "allow"

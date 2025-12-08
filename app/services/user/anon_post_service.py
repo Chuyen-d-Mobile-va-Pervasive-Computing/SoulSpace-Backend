@@ -69,8 +69,12 @@ class AnonPostService:
             flagged_reason = "Post contains phone number"
 
         # --- Tạo post ---
+        # Ensure user_id is ObjectId for database storage
+        from bson import ObjectId
+        user_oid = ObjectId(user_id) if isinstance(user_id, str) else user_id
+        
         post_data = AnonPost(
-            user_id=user_id,
+            user_id=user_oid,
             content=content,
             is_anonymous=is_anonymous,
             hashtags=hashtags,
@@ -81,6 +85,13 @@ class AnonPostService:
             like_count=0,
             comment_count=0,
         ).dict(by_alias=True)
+        
+        # Remove the auto-generated _id and let MongoDB generate a proper ObjectId
+        if "_id" in post_data:
+            del post_data["_id"]
+        
+        # Restore user_id as ObjectId (dict() serializes it to string)
+        post_data["user_id"] = user_oid
 
         new_post = await self.post_repo.create(post_data)
 
@@ -135,12 +146,19 @@ class AnonPostService:
         """
         return await self.post_repo.get_by_id_with_author(post_id=post_id, current_user_id=current_user_id)
     
-    async def delete_post(self, user_id: str, post_id: str):
+    async def delete_post(self, user_id, post_id: str):
         """Xóa bài viết (chỉ owner mới được xóa)."""
+        from bson import ObjectId
+        from fastapi import HTTPException
+        
+        # Convert user_id to string for comparison
+        user_id_str = str(user_id)
+        
         # Kiểm tra quyền sở hữu
         post = await self.post_repo.get_by_id(post_id)
-        if str(post.get("user_id")) != str(user_id):
-            from fastapi import HTTPException
+        post_user_id = str(post.get("user_id", ""))
+        
+        if post_user_id != user_id_str:
             raise HTTPException(status_code=403, detail="You can only delete your own posts")
         
         # Xóa bài viết
@@ -150,7 +168,7 @@ class AnonPostService:
         await self.log_repo.create_log(
             content_id=post_id,
             content_type="post",
-            user_id=user_id,
+            user_id=user_id_str,
             text=deleted_post["content"],
             detected_keywords=[],
             action="Deleted"

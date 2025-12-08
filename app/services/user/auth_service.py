@@ -41,7 +41,7 @@ class AuthService:
             username=username,
             email=user_data.email,
             password=hash_password(user_data.password),
-            role=user_data.role # Sử dụng role từ request
+            role="user"  # Luôn là user - Admin chỉ được tạo bởi admin khác
         )
         try:
             created_user = await self.user_repo.create(user)

@@ -38,15 +38,26 @@ class AnonCommentService:
                         scan_result = "Suspicious"
                         flagged_reason = f"Soft block keyword detected: {term}"
 
+
         # --- build comment object ---
+        # Ensure user_id is ObjectId for consistency
+        user_oid = ObjectId(user_id) if isinstance(user_id, str) else user_id
         comment_data = AnonComment(
             post_id=ObjectId(post_id),
-            user_id=user_id,
+            user_id=user_oid,
             content=content,
             created_at=datetime.utcnow(),
             moderation_status=action,
             is_preset=is_preset
         ).dict(by_alias=True)
+        
+        # Remove _id to let MongoDB generate proper ObjectId
+        if "_id" in comment_data:
+            del comment_data["_id"]
+        
+        # Ensure ObjectId types for database
+        comment_data["user_id"] = user_oid
+        comment_data["post_id"] = ObjectId(post_id)
 
         new_comment = await self.comment_repo.create(comment_data)
 
@@ -72,21 +83,35 @@ class AnonCommentService:
             {"$inc": {"comment_count": 1}}
         )
 
-    async def delete_comment(self, comment_id: str, user_id: str):
-        # Lấy và xóa comment
-        comment = await self.comment_repo.delete(comment_id)
+    async def delete_comment(self, comment_id: str, user_id):
+        """Xóa comment - chỉ owner mới được xóa."""
+        from fastapi import HTTPException
+        
+        # Convert user_id to string
+        user_id_str = str(user_id)
+        
+        # Get comment first to check ownership
+        comment = await self.comment_repo.get_by_id(comment_id)
+        
+        # Check ownership
+        comment_user_id = str(comment.get("user_id", ""))
+        if comment_user_id != user_id_str:
+            raise HTTPException(status_code=403, detail="You can only delete your own comments")
+        
+        # Delete comment
+        deleted_comment = await self.comment_repo.delete(comment_id)
 
         # Giảm comment_count nếu comment trước đó đã Approved
-        if comment["moderation_status"] == "Approved":
-            await self.post_repo.decrement_comment_count(comment["post_id"])
+        if deleted_comment.get("moderation_status") == "Approved":
+            await self.post_repo.decrement_comment_count(str(deleted_comment.get("post_id")))
 
         # Log moderation
         await self.log_repo.create_log(
             content_id=comment_id,
             content_type="comment",
-            user_id=user_id,
-            text=comment["content"],
+            user_id=user_id_str,
+            text=deleted_comment.get("content", ""),
             detected_keywords=[],
             action="Deleted"
         )
-        return {"deleted": True}
+        return {"deleted": True, "comment_id": comment_id}
