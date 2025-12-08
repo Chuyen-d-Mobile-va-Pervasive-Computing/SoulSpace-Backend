@@ -6,9 +6,10 @@ from app.core.dependencies import get_current_admin, get_current_expert
 
 router = APIRouter(prefix="/api/v1/upload", tags=["Cloudinary Upload"])
 
+
 # Admin upload image for test
 @router.post("/admin/test-image", response_model=CloudinaryUploadResponseSchema)
-async def upload_test_image(file: UploadFile = File(...), service: CloudinaryService = Depends(), admin=Depends(get_current_admin)):
+async def upload_test_image(file: UploadFile = File(...), service: CloudinaryService = Depends()):
     try:
         result = await service.upload_avatar(file)
         return CloudinaryUploadResponseSchema(
@@ -26,7 +27,7 @@ async def upload_test_image(file: UploadFile = File(...), service: CloudinarySer
 
 # Expert upload avatar
 @router.post("/expert/avatar", response_model=FileUploadResponse)
-async def upload_expert_avatar(file: UploadFile = File(...), service: CloudinaryService = Depends(), expert=Depends(get_current_expert)):
+async def upload_expert_avatar(file: UploadFile = File(...), service: CloudinaryService = Depends()):
     try:
         result = await service.upload_avatar(file)
         return FileUploadResponse(
@@ -44,7 +45,7 @@ async def upload_expert_avatar(file: UploadFile = File(...), service: Cloudinary
 
 # Expert upload certificate
 @router.post("/expert/certificate", response_model=FileUploadResponse)
-async def upload_expert_certificate(file: UploadFile = File(...), service: CloudinaryService = Depends(), expert=Depends(get_current_expert)):
+async def upload_expert_certificate(file: UploadFile = File(...), service: CloudinaryService = Depends()):
     try:
         result = await service.upload_certificate(file)
         return FileUploadResponse(
