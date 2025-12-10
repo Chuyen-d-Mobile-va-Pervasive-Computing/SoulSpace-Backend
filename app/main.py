@@ -19,6 +19,9 @@ from app.api.user.user_tree_router import router as user_tree_router
 from app.api.user.game_router import router as game_router
 from app.api.user.badge_router import router as badge_router
 from app.api.user.report_router import router as report_router
+from app.api.user.expert_router import router as experts_router
+from app.api.user.appointment_router import router as appointment_router
+from app.api.user.payment_router import router as payment_router
 
 # Admin routers
 from app.api.admin.admin_router import router as admin_router
@@ -26,15 +29,19 @@ from app.api.admin.expert_management_router import router as expert_management_r
 from app.api.admin.test_router import router as admin_test_router
 from app.api.common.cloudinary_router import router as cloudinary_router
 
+
 # Expert routers
 from app.api.expert.expert_router import router as expert_router
+from app.api.expert.dashboard_router import router as expert_dashboard_router
+from app.api.expert.expert_schedule_router import router as expert_schedule_router
+from app.api.expert.appointment_router import router as expert_appointment_router
 
 # ==== APP INIT ====
 app = FastAPI(title="SoulSpace Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS.split(","),
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,6 +65,9 @@ app.include_router(user_tree_router, prefix=API_PREFIX)
 app.include_router(game_router, prefix=API_PREFIX)
 app.include_router(report_router, prefix=API_PREFIX)
 app.include_router(badge_router, prefix=API_PREFIX)
+app.include_router(experts_router, prefix=API_PREFIX)
+app.include_router(appointment_router, prefix=API_PREFIX)
+app.include_router(payment_router, prefix=API_PREFIX)
 
 # Admin routes
 app.include_router(admin_router, prefix=API_PREFIX)
@@ -67,6 +77,9 @@ app.include_router(cloudinary_router, prefix=API_PREFIX)
 
 # Expert routes
 app.include_router(expert_router, prefix=API_PREFIX)
+app.include_router(expert_schedule_router, prefix=API_PREFIX)
+app.include_router(expert_appointment_router, prefix=API_PREFIX)
+app.include_router(expert_dashboard_router, prefix=API_PREFIX)
 
 # ==== APP EVENTS ====
 @app.on_event("startup")

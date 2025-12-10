@@ -11,16 +11,19 @@ class User(BaseModel):
     password: str
     role: Literal["user", "admin", "expert"] = "user"
     avatar_url: Optional[str] = None  # Cloudinary URL for avatar
+    is_active: bool = True
+    expert_profile_id: Optional[PyObjectId] = None
+    expert_status: Optional[Literal["pending", "approved", "rejected", "inactive"]] = None
+    # Chat + realtime
+    online_status: Optional[bool] = None
+    last_seen_at: Optional[datetime] = None
+    # Legacy fields
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = None
     last_login_at: Optional[datetime] = None
     total_points: int = 0
     reset_otp: Optional[str] = None
     reset_otp_expiry: Optional[datetime] = None
-    is_active: bool = True
-    
-    # Expert-specific fields (Only when role="expert")
-    expert_profile_id: Optional[PyObjectId] = None
-    expert_status: Optional[Literal["pending", "approved", "rejected"]] = None
 
     class Config:
         populate_by_name = True

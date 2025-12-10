@@ -37,6 +37,7 @@ class ExpertProfileCreate(BaseModel):
     bio: Optional[str] = Field(None, max_length=200)
     avatar_url: Optional[str] = None
     certificate_url: str  # Required
+    consultation_price: Optional[int] = Field(None, ge=0)
     
     @field_validator("full_name")
     @classmethod

@@ -6,6 +6,68 @@ from fastapi import HTTPException, status
 import datetime
 
 class EmailService:
+    async def send_email(self, to_email: str, subject: str, html_body: str):
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+            message = MIMEMultipart()
+            message["From"] = f"SoulSpace <{self.email_user}>"
+            message["To"] = to_email
+            message["Subject"] = subject
+            message.attach(MIMEText(html_body, "html"))
+            import re
+            if not to_email or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", to_email):
+                print(f"[WARNING] Invalid recipient email: '{to_email}' - skipping send.")
+                return
+            try:
+                with smtplib.SMTP(self.email_host, self.email_port) as server:
+                    server.starttls()
+                    server.login(self.email_user, self.email_password)
+                    server.send_message(message)
+            except Exception as e:
+                import traceback
+                print(f"[WARNING] Send email failed: {e} ({type(e).__name__})")
+                traceback.print_exc()
+    async def send_appointment_accepted_email(
+        self, user_email: str, expert_name: str, appointment_date: str,
+        start_time: str, end_time: str, clinic_name: str, clinic_address: str
+    ):
+        subject = "Your appointment has been confirmed!"
+        html_body = f"""
+        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
+            <h2 style='color: #27ae60;'>Congratulations! Your appointment is confirmed</h2>
+            <p>Expert <strong>{expert_name}</strong> has accepted your consultation appointment:</p>
+            <div style='background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;'>
+                <p><strong>Date:</strong> {appointment_date}</p>
+                <p><strong>Time:</strong> {start_time} - {end_time}</p>
+                <p><strong>Clinic:</strong> {clinic_name}</p>
+                <p><strong>Address:</strong> {clinic_address}</p>
+            </div>
+            <p>Please arrive on time and prepare yourself for a comfortable session!</p>
+            <p>Best regards,<br><strong>SoulSpace Team</strong></p>
+        </div>
+        """
+        await self.send_email(user_email, subject, html_body)
+
+    async def send_appointment_declined_email(
+        self, user_email: str, expert_name: str, appointment_date: str, start_time: str, reason: str = None
+    ):
+        subject = "Sorry – Your appointment was declined"
+        reason_text = f"<p><strong>Reason:</strong> {reason or 'No specific reason provided'}</p>" if reason else ""
+        html_body = f"""
+        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
+            <h2 style='color: #e74c3c;'>Appointment Declined</h2>
+            <p>Expert <strong>{expert_name}</strong> could not accept your appointment:</p>
+            <div style='background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;'>
+                <p><strong>Scheduled date:</strong> {appointment_date}</p>
+                <p><strong>Scheduled time:</strong> {start_time}</p>
+                {reason_text}
+            </div>
+            <p>You may choose another time slot or expert.</p>
+            <p>Sorry for the inconvenience.<br><strong>SoulSpace Team</strong></p>
+        </div>
+        """
+        await self.send_email(user_email, subject, html_body)
     def __init__(self):
         """Initialize EmailService with SMTP configuration."""
         self.email_host = settings.EMAIL_HOST
@@ -124,17 +186,15 @@ class EmailService:
 
     async def notify_admin_new_expert(self, expert_email: str, expert_name: str):
         """Notify admin when new expert submits profile."""
-        admin_email = settings.EMAIL_USER  # Hoặc email admin cố định
-        
+        admin_email = settings.EMAIL_USER  # Or set a fixed admin email
         message = MIMEMultipart()
         message["From"] = f"SoulSpace <{self.email_user}>"
         message["To"] = admin_email
         message["Subject"] = f"🔔 New Expert Registration: {expert_name}"
-        
         html_body = f"""
         <!DOCTYPE html>
         <html>
-        <body style="font-family: Arial, sans-serif; padding: 20px;">
+        <body style='font-family: Arial, sans-serif; padding: 20px;'>
             <h2>New Expert Registration</h2>
             <p>A new expert has submitted their profile for review:</p>
             <ul>
@@ -142,19 +202,17 @@ class EmailService:
                 <li><strong>Email:</strong> {expert_email}</li>
             </ul>
             <p>Please review and approve/reject in the admin panel.</p>
-            <p style="color: #888; font-size: 12px;">© {datetime.datetime.now().year} SoulSpace</p>
+            <p style='color: #888; font-size: 12px;'>&copy; {datetime.datetime.now().year} SoulSpace</p>
         </body>
         </html>
         """
         message.attach(MIMEText(html_body, "html"))
-        
         try:
             with smtplib.SMTP(self.email_host, self.email_port) as server:
                 server.starttls()
                 server.login(self.email_user, self.email_password)
                 server.send_message(message)
         except Exception as e:
-            # Log but don't fail the request
             print(f"Failed to send admin notification: {e}")
 
     async def notify_expert_approved(self, expert_email: str, expert_name: str):
@@ -163,21 +221,19 @@ class EmailService:
         message["From"] = f"SoulSpace <{self.email_user}>"
         message["To"] = expert_email
         message["Subject"] = "✅ Your Expert Application Has Been Approved!"
-        
         html_body = f"""
         <!DOCTYPE html>
         <html>
-        <body style="font-family: Arial, sans-serif; padding: 20px;">
+        <body style='font-family: Arial, sans-serif; padding: 20px;'>
             <h2>Congratulations, {expert_name}!</h2>
-            <p>Your expert application has been <strong style="color: green;">approved</strong>.</p>
+            <p>Your expert application has been <strong style='color: green;'>approved</strong>.</p>
             <p>You can now log in to the SoulSpace platform and start providing consultations.</p>
             <p>Thank you for joining our community!</p>
-            <p style="color: #888; font-size: 12px;">© {datetime.datetime.now().year} SoulSpace</p>
+            <p style='color: #888; font-size: 12px;'>&copy; {datetime.datetime.now().year} SoulSpace</p>
         </body>
         </html>
         """
         message.attach(MIMEText(html_body, "html"))
-        
         try:
             with smtplib.SMTP(self.email_host, self.email_port) as server:
                 server.starttls()
@@ -192,24 +248,21 @@ class EmailService:
         message["From"] = f"SoulSpace <{self.email_user}>"
         message["To"] = expert_email
         message["Subject"] = "❌ Your Expert Application Status"
-        
         reason_text = f"<p><strong>Reason:</strong> {reason}</p>" if reason else ""
-        
         html_body = f"""
         <!DOCTYPE html>
         <html>
-        <body style="font-family: Arial, sans-serif; padding: 20px;">
+        <body style='font-family: Arial, sans-serif; padding: 20px;'>
             <h2>Dear {expert_name},</h2>
-            <p>We regret to inform you that your expert application has been <strong style="color: red;">rejected</strong>.</p>
+            <p>We regret to inform you that your expert application has been <strong style='color: red;'>rejected</strong>.</p>
             {reason_text}
             <p>You can resubmit your application after addressing the issues mentioned.</p>
             <p>If you have questions, please contact our support team.</p>
-            <p style="color: #888; font-size: 12px;">© {datetime.datetime.now().year} SoulSpace</p>
+            <p style='color: #888; font-size: 12px;'>&copy; {datetime.datetime.now().year} SoulSpace</p>
         </body>
         </html>
         """
         message.attach(MIMEText(html_body, "html"))
-        
         try:
             with smtplib.SMTP(self.email_host, self.email_port) as server:
                 server.starttls()
@@ -217,4 +270,77 @@ class EmailService:
                 server.send_message(message)
         except Exception as e:
             print(f"Failed to send rejection notification: {e}")
+    
+    async def send_payment_notification_to_expert(
+        self,
+        expert_email: str,
+        expert_name: str,
+        user_name: str,
+        appointment_date: str,
+        start_time: str,
+        clinic_name: str,
+        clinic_address: str,
+        amount: str,
+        method: str
+    ):
+        subject = "New appointment – Action required"
+        html_body = f"""
+        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
+            <h2 style='color: #2c3e50;'>Hello Dr. {expert_name},</h2>
+            <p>You have received a <strong>new appointment</strong> from a client:</p>
+            <div style='background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;'>
+                <p><strong>Client name:</strong> {user_name}</p>
+                <p><strong>Date:</strong> {appointment_date}</p>
+                <p><strong>Time:</strong> {start_time}</p>
+                <p><strong>Clinic:</strong> {clinic_name}</p>
+                <p><strong>Address:</strong> {clinic_address}</p>
+                <p><strong>Payment method:</strong> <span style='color: {'#27ae60' if 'online' in method else '#e67e22'}'><strong>{method}</strong></span></p>
+                <p><strong>Amount:</strong> <strong style='font-size: 18px; color: #27ae60;'>{amount}</strong></p>
+            </div>
+            <p>Please log in to SoulSpace to <strong>accept</strong> or <strong>decline</strong> this appointment within 24 hours.</p>
+            <div style='text-align: center; margin: 30px 0;'>
+                <a href='https://soulspace.com/expert/dashboard' 
+                   style='background: #3498db; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;'>
+                    VIEW APPOINTMENT
+                </a>
+            </div>
+            <p>Best regards,<br><strong>SoulSpace Team</strong></p>
+        </div>
+        """
+        await self.send_email(expert_email, subject, html_body)
 
+    async def send_refund_email(self, user_email: str, amount: int, appointment_date: str, start_time: str):
+        subject = "Refund Processed for Your Cancelled Appointment"
+        html_body = f"""
+        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
+            <h2 style='color: #27ae60;'>Refund Processed</h2>
+            <p>We have processed a refund for your cancelled appointment:</p>
+            <div style='background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;'>
+                <p><strong>Amount Refunded:</strong> {amount}</p>
+                <p><strong>Appointment Date:</strong> {appointment_date}</p>
+                <p><strong>Start Time:</strong> {start_time}</p>
+            </div>
+            <p>The refund will be credited to your account within 3-5 business days.</p>
+            <p>Best regards,<br><strong>SoulSpace Team</strong></p>
+        </div>
+        """
+        await self.send_email(user_email, subject, html_body)
+        
+    async def send_appointment_cancelled_by_expert_email(
+        self, user_email: str, expert_name: str, appointment_date: str, start_time: str, reason: str
+    ):
+        subject = "Your appointment has been cancelled by the expert"
+        html_body = f"""
+        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
+            <h2 style='color: #e74c3c;'>Appointment Cancelled</h2>
+            <p>Expert <strong>{expert_name}</strong> has cancelled your appointment:</p>
+            <div style='background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;'>
+                <p><strong>Date:</strong> {appointment_date}</p>
+                <p><strong>Time:</strong> {start_time}</p>
+                <p><strong>Reason:</strong> {reason}</p>
+            </div>
+            <p>We apologize for the inconvenience. You may book another appointment.</p>
+            <p>Best regards,<br><strong>SoulSpace Team</strong></p>
+        </div>
+        """
+        await self.send_email(user_email, subject, html_body)

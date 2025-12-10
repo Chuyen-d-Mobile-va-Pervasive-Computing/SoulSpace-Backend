@@ -11,9 +11,6 @@ class ExpertRepository:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
         self.collection = db["expert_profiles"]
-        print("🗄️ ExpertRepository initialized")
-        print(f"   Database: {db.name}")
-        print(f"   Collection: expert_profiles")
 
     async def create(self, profile_data: Union[ExpertProfile, dict]) -> ExpertProfile:
         """Create new expert profile (store ObjectId, return model)"""
