@@ -10,6 +10,7 @@ class User(BaseModel):
     email: EmailStr
     password: str
     role: Literal["user", "admin", "expert"] = "user"
+    avatar_url: Optional[str] = None  # Cloudinary URL for avatar
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_login_at: Optional[datetime] = None
     total_points: int = 0

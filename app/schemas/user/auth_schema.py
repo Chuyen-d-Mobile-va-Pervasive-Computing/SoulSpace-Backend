@@ -6,8 +6,7 @@ import re
 class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
-    # Role không được chọn khi register - mặc định là "user"
-    # Admin chỉ có thể được tạo bởi admin khác
+    role: Optional[Literal["user", "admin"]] = "user"
 
     @validator("password")
     def validate_password(cls, v):
@@ -34,7 +33,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     username: str
-    role: Literal["user", "admin"]
+    role: Literal["user", "admin", "expert"]  # Added expert role
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr

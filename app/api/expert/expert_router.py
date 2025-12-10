@@ -2,14 +2,22 @@
 Expert role API endpoints.
 These endpoints are for expert-only operations.
 """
-from fastapi import APIRouter, Depends
-from app.core.dependencies import get_current_user
+from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi.security import HTTPBearer
+from app.core.dependencies import get_current_user, get_expert_service
 from app.core.permissions import Role, require_role
 from app.schemas.expert.expert_article_schema import ExpertArticleCreate, ExpertArticleResponse
 from app.services.expert.expert_article_service import ExpertArticleService
 from app.core.database import get_db
 
-router = APIRouter(prefix="/expert", tags=["👨‍⚕️ Expert - Consultation (Chuyên gia)"])
+# Security scheme for Swagger UI lock icon
+security = HTTPBearer()
+
+router = APIRouter(
+    prefix="/expert", 
+    tags=["👨‍⚕️ Expert - Consultation (Chuyên gia)"],
+    dependencies=[Security(security)]  # Hiển thị lock icon cho Swagger UI
+)
 
 
 @router.get("/health")
@@ -38,12 +46,51 @@ async def expert_info(current_user: dict = Depends(get_current_user)):
         "role": current_user.get("role", "unknown")
     }
 
+
+@router.get("/my-profile")
+@require_role(Role.EXPERT)
+async def get_my_profile(
+    current_user: dict = Depends(get_current_user),
+    service = Depends(get_expert_service)
+):
+    """
+    Lấy thông tin profile và profile_id của expert hiện tại.
+    Expert cần profile_id này để theo dõi trạng thái duyệt.
+    """
+    user_id = str(current_user["_id"])
+    profile = await service.get_expert_by_user_id(user_id)
+    
+    if not profile:
+        raise HTTPException(
+            status_code=404, 
+            detail="Expert profile not found. Please complete your profile first."
+        )
+    
+    return {
+        "profile_id": str(profile.id),
+        "user_id": user_id,
+        "full_name": profile.full_name,
+        "phone": profile.phone,
+        "date_of_birth": profile.date_of_birth,
+        "bio": profile.bio,
+        "avatar_url": profile.avatar_url,
+        "status": profile.status,
+        "years_of_experience": profile.years_of_experience,
+        "clinic_name": profile.clinic_name,
+        "clinic_address": profile.clinic_address,
+        "certificate_url": profile.certificate_url,
+        "created_at": profile.created_at,
+        "approval_date": profile.approval_date,
+        "approved_by": str(profile.approved_by) if profile.approved_by else None
+    }
+
+
 @router.post("/articles", response_model=ExpertArticleResponse)
 @require_role(Role.EXPERT)
-async def create_article(payload: ExpertArticleCreate, db=Depends(get_db), user=Depends(get_current_user)):
+async def create_article(payload: ExpertArticleCreate, db=Depends(get_db), current_user=Depends(get_current_user)):
     service = ExpertArticleService(db)
     return await service.create_article(
-        expert_id=user["_id"],
+        expert_id=str(current_user["_id"]),  # Convert to string
         title=payload.title,
         content=payload.content,
         image_url=payload.image_url
@@ -51,6 +98,7 @@ async def create_article(payload: ExpertArticleCreate, db=Depends(get_db), user=
 
 @router.get("/articles", response_model=list[ExpertArticleResponse])
 @require_role(Role.EXPERT)
-async def list_my_articles(db=Depends(get_db), user=Depends(get_current_user)):
+async def list_my_articles(db=Depends(get_db), current_user=Depends(get_current_user)):
     service = ExpertArticleService(db)
-    return await service.get_expert_articles(user["_id"])
+    return await service.get_expert_articles(str(current_user["_id"]))  # Convert to string
+

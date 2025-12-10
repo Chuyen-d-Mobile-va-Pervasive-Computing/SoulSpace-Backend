@@ -10,7 +10,18 @@ class ExpertArticleRepository:
         return await self.collection.find_one({"_id": result.inserted_id})
 
     async def list_by_expert(self, expert_id: str):
-        return await self.collection.find({"expert_id": ObjectId(expert_id)}).sort("created_at", -1).to_list(length=100)
+        # Try ObjectId first
+        results = []
+        try:
+            results = await self.collection.find({"expert_id": ObjectId(expert_id)}).sort("created_at", -1).to_list(length=100)
+        except Exception:
+            results = []
+        
+        # Fallback to string expert_id
+        if not results:
+            results = await self.collection.find({"expert_id": expert_id}).sort("created_at", -1).to_list(length=100)
+        
+        return results
 
     async def list_all_pending(self):
         return await self.collection.find({"status": "pending"}).sort("created_at", 1).to_list(length=100)
@@ -19,9 +30,24 @@ class ExpertArticleRepository:
         update_data = {"status": status}
         if approved_at:
             update_data["approved_at"] = approved_at
-            
-        await self.collection.update_one(
-            {"_id": ObjectId(article_id)},
-            {"$set": update_data}
-        )
-        return await self.collection.find_one({"_id": ObjectId(article_id)})
+        
+        # Try ObjectId first
+        result = None
+        try:
+            result = await self.collection.find_one_and_update(
+                {"_id": ObjectId(article_id)},
+                {"$set": update_data},
+                return_document=True
+            )
+        except Exception:
+            result = None
+        
+        # Fallback to string _id
+        if not result:
+            result = await self.collection.find_one_and_update(
+                {"_id": article_id},
+                {"$set": update_data},
+                return_document=True
+            )
+        
+        return result

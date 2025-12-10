@@ -18,7 +18,8 @@ from app.schemas.user.anon_post_schema import AnonPostResponse
 from app.schemas.user.report_schema import ReportResponse
 from app.schemas.expert.expert_article_schema import ExpertArticleResponse
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime, timedelta, date
+from typing import Optional, Literal
 import re
 
 
@@ -304,9 +305,21 @@ async def resolve_report(
     db=Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    """Xử lý report."""
+    """
+    Xử lý report.
+    
+    Actions:
+    - delete_content: Xóa nội dung bị báo cáo
+    - warn_user: Cảnh báo người dùng
+    - dismiss: Bỏ qua báo cáo
+    """
     service = ReportService(db)
-    return await service.resolve_report(report_id, action)
+    try:
+        return await service.resolve_report(report_id, action)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 # --- Expert Article Management ---
 @router.get("/expert-articles/pending", response_model=list[ExpertArticleResponse])
@@ -319,54 +332,163 @@ async def list_pending_articles(db=Depends(get_db), current_user=Depends(get_cur
 @require_role(Role.ADMIN)
 async def update_article_status(article_id: str, status: str, db=Depends(get_db), current_user=Depends(get_current_user)):
     if status not in ["approved", "rejected"]:
-        raise HTTPException(status_code=400, detail="Invalid status")
+        raise HTTPException(status_code=400, detail="Invalid status. Must be 'approved' or 'rejected'")
         
     service = ExpertArticleService(db)
     article = await service.update_article_status(article_id, status)
     
-    # Notify expert
-    notif_service = NotificationService(db)
-    await notif_service.create_notification(
-        user_id=str(article["expert_id"]),
-        title=f"Bài viết đã được {status}",
-        message=f"Bài viết '{article['title']}' của bạn đã được {status}.",
-        type="system"
-    )
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    
+    # Notify expert (with error handling)
+    try:
+        notif_service = NotificationService(db)
+        await notif_service.create_notification(
+            user_id=str(article["expert_id"]),
+            title=f"Bài viết đã được {status}",
+            message=f"Bài viết '{article['title']}' của bạn đã được {status}.",
+            type="system"
+        )
+    except Exception as e:
+        # Log error but don't fail the request
+        print(f"Warning: Failed to send notification: {e}")
+    
+    # Convert ObjectIds to strings for JSON response
+    article["_id"] = str(article["_id"])
+    article["expert_id"] = str(article["expert_id"])
     
     return article
 
 # --- Statistics ---
 @router.get("/stats")
 @require_role(Role.ADMIN)
-async def get_stats(db=Depends(get_db), current_user=Depends(get_current_user)):
-    """Thống kê tổng quan hệ thống."""
-    users_count = await db["users"].count_documents({})
-    experts_count = await db["users"].count_documents({"role": "expert"})
-    posts_count = await db["anon_posts"].count_documents({})
+async def get_stats(
+    period: Optional[Literal["today", "week", "month", "all"]] = Query(None, description="Khoảng thời gian: today (hôm nay), week (7 ngày), month (30 ngày), all (tất cả)"),
+    date: Optional[str] = Query(None, description="Chọn ngày cụ thể (format: YYYY-MM-DD), ví dụ: 2025-12-01"),
+    db=Depends(get_db), 
+    current_user=Depends(get_current_user)
+):
+    """
+    Thống kê tổng quan hệ thống.
+    
+    **Cách 1 - Dùng period:**
+    - period=today: Thống kê hôm nay
+    - period=week: Thống kê 7 ngày qua
+    - period=month: Thống kê 30 ngày qua
+    - period=all hoặc không truyền: Thống kê tất cả
+    
+    **Cách 2 - Chọn ngày cụ thể:**
+    - date=2025-12-01: Thống kê của ngày 01/12/2025
+    
+    Lưu ý: Nếu truyền cả period và date, date sẽ được ưu tiên.
+    """
+    
+    now = datetime.utcnow()
+    today_start = datetime(now.year, now.month, now.day)
+    filter_start = None
+    filter_end = None
+    
+    # Priority: date > period
+    if date:
+        try:
+            selected_date = datetime.strptime(date, "%Y-%m-%d")
+            filter_start = selected_date
+            filter_end = selected_date + timedelta(days=1) - timedelta(seconds=1)
+            period_label = f"Ngày {date}"
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD (ví dụ: 2025-12-01)")
+    elif period == "today":
+        filter_start = today_start
+        filter_end = now
+        period_label = "Hôm nay"
+    elif period == "week":
+        filter_start = now - timedelta(days=7)
+        filter_end = now
+        period_label = "7 ngày qua"
+    elif period == "month":
+        filter_start = now - timedelta(days=30)
+        filter_end = now
+        period_label = "30 ngày qua"
+    else:
+        period_label = "Tất cả"
+    
+    has_filter = filter_start is not None
+    
+    async def count_docs(collection: str, extra_query: dict = None, date_field: str = "created_at"):
+        """Count documents with optional date filter"""
+        query = extra_query.copy() if extra_query else {}
+        
+        if filter_start and filter_end:
+            query[date_field] = {"$gte": filter_start, "$lte": filter_end}
+        
+        return await db[collection].count_documents(query)
+    
+    # Users statistics
+    users_total = await db["users"].count_documents({})
+    users_in_period = await count_docs("users") if has_filter else users_total
+    experts_total = await db["users"].count_documents({"role": "expert"})
+    experts_in_period = await count_docs("users", {"role": "expert"}) if has_filter else experts_total
+    
+    # Posts statistics  
+    posts_total = await db["anon_posts"].count_documents({})
+    posts_in_period = await count_docs("anon_posts") if has_filter else posts_total
     posts_pending = await db["anon_posts"].count_documents({"moderation_status": "Pending"})
     posts_blocked = await db["anon_posts"].count_documents({"moderation_status": "Blocked"})
-    comments_count = await db["anon_comments"].count_documents({})
-    reports_pending = await db["reports"].count_documents({"status": "pending"})
-    articles_pending = await db["expert_articles"].count_documents({"status": "pending"})
     
-    return {
+    # Comments statistics
+    comments_total = await db["anon_comments"].count_documents({})
+    comments_in_period = await count_docs("anon_comments") if has_filter else comments_total
+    
+    # Reports statistics
+    reports_total = await db["reports"].count_documents({})
+    reports_in_period = await count_docs("reports") if has_filter else reports_total
+    reports_pending = await db["reports"].count_documents({"status": "pending"})
+    reports_resolved = await db["reports"].count_documents({"status": "resolved"})
+    reports_rejected = await db["reports"].count_documents({"status": "rejected"})
+    
+    # Expert articles statistics
+    articles_total = await db["expert_articles"].count_documents({})
+    articles_in_period = await count_docs("expert_articles") if has_filter else articles_total
+    articles_pending = await db["expert_articles"].count_documents({"status": "pending"})
+    articles_approved = await db["expert_articles"].count_documents({"status": "approved"})
+    articles_rejected = await db["expert_articles"].count_documents({"status": "rejected"})
+    
+    result = {
+        "period": period_label,
+        "generated_at": now.isoformat(),
         "users": {
-            "total": users_count,
-            "experts": experts_count
+            "total": users_total,
+            "in_period": users_in_period if has_filter else None,
+            "experts": experts_total,
+            "experts_in_period": experts_in_period if has_filter else None
         },
         "posts": {
-            "total": posts_count,
+            "total": posts_total,
+            "in_period": posts_in_period if has_filter else None,
             "pending": posts_pending,
             "blocked": posts_blocked
         },
         "comments": {
-            "total": comments_count
+            "total": comments_total,
+            "in_period": comments_in_period if has_filter else None
         },
         "reports": {
-            "pending": reports_pending
+            "total": reports_total,
+            "in_period": reports_in_period if has_filter else None,
+            "pending": reports_pending,
+            "resolved": reports_resolved,
+            "rejected": reports_rejected
         },
         "expert_articles": {
-            "pending": articles_pending
+            "total": articles_total,
+            "in_period": articles_in_period if has_filter else None,
+            "pending": articles_pending,
+            "approved": articles_approved,
+            "rejected": articles_rejected
         }
     }
+    
+    return result
+
+
 

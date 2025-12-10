@@ -65,6 +65,11 @@ class AdminExpertService:
         }
     
     
+    async def get_expert_by_user_id(self, user_id: str):
+        """Get expert profile by user_id - useful for experts to get their own profile_id"""
+        return await self.expert_repo.get_by_user_id(user_id)
+    
+    
     async def get_expert_detail(self, profile_id: str) -> Dict:
         """Get expert detail by profile_id"""
         
