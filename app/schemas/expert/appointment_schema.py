@@ -8,6 +8,7 @@ class UserInAppointment(BaseModel):
 
 class ExpertAppointmentListItem(BaseModel):
     _id: str
+    appointment_id: str
     date: str
     start_time: str
     user: UserInAppointment

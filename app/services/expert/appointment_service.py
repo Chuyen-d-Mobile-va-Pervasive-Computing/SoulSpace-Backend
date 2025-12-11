@@ -30,6 +30,7 @@ class ExpertAppointmentService:
             if user:
                 data.append({
                     "_id": str(apm.id),
+                    "appointment_id": str(apm.id),
                     "date": apm.appointment_date,
                     "start_time": apm.start_time,
                     "expert_profile_id": str(apm.expert_profile_id),
