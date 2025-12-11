@@ -98,6 +98,7 @@ class ExpertAuthService:
                 clinic_name=data["clinic_name"],
                 clinic_address=data["clinic_address"],
                 certificate_url=data["certificate_url"],
+                consultation_price=data["consultation_price"],
                 status="pending"
             )
             

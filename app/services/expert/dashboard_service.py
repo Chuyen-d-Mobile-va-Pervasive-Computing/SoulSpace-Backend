@@ -42,9 +42,6 @@ class ExpertDashboardService:
         upcoming_appointments = await self.appointment_repo.get_by_expert_id(expert_profile_id, "upcoming")
 
         all_appointments = await self.appointment_repo.get_by_expert_id(expert_profile_id)
-        print(f"[DEBUG] today_str: {today_str}")
-        for apm in all_appointments:
-            print(f"[DEBUG] appointment_id: {getattr(apm, 'id', None)}, appointment_date: {apm.appointment_date}")
         appointments_today = len([
             apm for apm in all_appointments
             if apm.appointment_date == today_str
