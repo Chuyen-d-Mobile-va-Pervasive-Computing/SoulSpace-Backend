@@ -1,9 +1,16 @@
+# app/services/user/payment_service.py
 from fastapi import HTTPException, status
 from app.repositories.payment_repository import PaymentRepository
 from app.repositories.appointment_repository import AppointmentRepository
 from app.repositories.expert_repository import ExpertRepository
+from app.repositories.user_repository import UserRepository
 from app.services.common.email_service import EmailService
-from app.schemas.user.payment_schema import PaymentCreateResponse, PaymentBreakdown
+from app.schemas.user.payment_schema import PaymentCreateResponse, PaymentBreakdown, AppointmentInfoInPayment, ExpertInfoInPayment
+from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class UserPaymentService:
     def __init__(
@@ -17,56 +24,72 @@ class UserPaymentService:
         self.appointment_repo = appointment_repo
         self.expert_repo = expert_repo
         self.email_service = email_service
+        self.user_repo = UserRepository(expert_repo.db)  # Tái sử dụng db
 
     async def create_payment(self, user_id: str, appointment_id: str, method: str):
         if method not in ["card", "cash"]:
             raise HTTPException(status_code=400, detail="Invalid payment method")
 
+        # Lấy thông tin appointment + validate
         appointment = await self.appointment_repo.get_by_id_for_user(appointment_id, user_id)
-        if not appointment or appointment.status != "pending":
-            raise HTTPException(status_code=404, detail="Appointment not found or not pending")
-        if appointment.status == "cancelled":
-            raise HTTPException(status_code=400, detail="Appointment was cancelled, cannot pay")
+        if not appointment:
+            raise HTTPException(status_code=404, detail="Appointment not found")
+        if appointment.status != "pending":
+            raise HTTPException(status_code=400, detail="Only pending appointments can be paid")
 
-        existing_payment = await self.payment_repo.get_latest_by_appointment(appointment_id)
-        if existing_payment and existing_payment.status == "paid":
-            raise HTTPException(status_code=400, detail="Payment already completed for this appointment")
+        # Kiểm tra đã thanh toán chưa
+        existing = await self.payment_repo.get_latest_by_appointment(appointment_id)
+        if existing and existing.status == "paid":
+            raise HTTPException(status_code=400, detail="This appointment has already been paid")
 
+        # Tạo payment
         payment_status = "paid" if method == "card" else "pending"
-        try:
-            payment = await self.payment_repo.create_payment(appointment, method, payment_status)
-        except Exception:
-            raise HTTPException(status_code=500, detail="Payment failed, please try again")
+        payment = await self.payment_repo.create_payment(appointment, method, payment_status)
 
-        # Gửi email cho chuyên gia (không làm fail API nếu lỗi)
+        # Lấy thông tin expert
+        expert = await self.expert_repo.get_by_id(str(appointment.expert_profile_id))
+        if not expert:
+            raise HTTPException(status_code=404, detail="Expert not found")
+
+        expert_user = await self.user_repo.get_by_id(str(expert.user_id))
+        expert_email = expert_user.email if expert_user else None
+
+        # Gửi email thông báo cho chuyên gia (không làm fail API)
         try:
-            expert = await self.expert_repo.get_by_id(str(appointment.expert_profile_id))
-            expert_email = None
-            if expert:
-                # Lấy email từ user
-                from app.repositories.user_repository import UserRepository
-                user_repo = UserRepository(self.expert_repo.db)
-                expert_user = await user_repo.get_by_id(str(expert.user_id))
-                expert_email = expert_user.email if expert_user else None
-            if expert and hasattr(self.email_service, "send_payment_notification_to_expert"):
+            if expert_email and hasattr(self.email_service, "send_payment_notification_to_expert"):
                 await self.email_service.send_payment_notification_to_expert(
                     expert_email=expert_email,
                     expert_name=expert.full_name,
-                    user_name="Khách hàng SoulSpace",
+                    user_name="SoulSpace Customer",
                     appointment_date=appointment.appointment_date,
                     start_time=appointment.start_time,
-                    clinic_name=expert.clinic_name,
-                    clinic_address=expert.clinic_address,
+                    clinic_name=expert.clinic_name or "Consultation Clinic",
+                    clinic_address=expert.clinic_address or "Unknown address",
                     amount=f"{appointment.total_amount:,} VND",
-                    method="Thanh toán online (Thẻ)" if method == "card" else "Thanh toán tại phòng khám (Tiền mặt)"
+                    method="Pay Online" if method == "card" else "Pay at Clinic"
                 )
         except Exception as e:
-            print(f"[WARNING] Send email failed: {e}")
+            logger.warning(f"Failed to send payment email to expert: {e}")
 
         return PaymentCreateResponse(
             payment_id=str(payment.id),
             status=payment.status,
+            method=method,
             amount=payment.amount,
+            paid_at=payment.paid_at,
+            appointment=AppointmentInfoInPayment(
+                appointment_id=str(appointment.id),
+                appointment_date=appointment.appointment_date,
+                start_time=appointment.start_time,
+                end_time=appointment.end_time
+            ),
+            expert=ExpertInfoInPayment(
+                expert_profile_id=str(expert.id),
+                full_name=expert.full_name,
+                avatar_url=expert.avatar_url,
+                clinic_name=expert.clinic_name,
+                clinic_address=expert.clinic_address
+            ),
             breakdown=PaymentBreakdown(
                 price=appointment.price,
                 vat=appointment.vat,

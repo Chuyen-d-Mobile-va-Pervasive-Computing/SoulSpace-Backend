@@ -20,35 +20,30 @@ class UserExpertService:
                 detail=f"Failed to get approved experts: {str(e)}"
             )
 
-    async def get_expert_detail(self, expert_id: str):
+    async def get_expert_detail(self, expert_profile_id: str):
         try:
-            profile = await self.expert_repo.get_by_id(expert_id)
+            profile = await self.expert_repo.get_by_id(expert_profile_id)
             if not profile or profile.status != "approved":
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Expert not found or not approved"
-                )
-            # Lấy email từ User model
+                return None
+
             email = None
             if self.user_repo:
                 user = await self.user_repo.get_by_id(str(profile.user_id))
-                if user:
-                    email = user.email
+                email = user.email if user else None
+
             return {
-                "_id": str(profile.id),
+                "expert_profile_id": str(profile.id),
                 "full_name": profile.full_name,
-                "avatar_url": profile.avatar_url,
-                "phone": profile.phone,
+                "avatar_url": profile.avatar_url or "",
+                "phone": profile.phone or "",
                 "email": email,
-                "bio": profile.bio,
+                "bio": profile.bio or "",
                 "years_of_experience": profile.years_of_experience,
                 "total_patients": profile.total_patients,
-                "clinic_name": profile.clinic_name,
-                "clinic_address": profile.clinic_address,
+                "clinic_name": profile.clinic_name or "",
+                "clinic_address": profile.clinic_address or "",
                 "consultation_price": profile.consultation_price,
             }
-        except HTTPException as he:
-            raise he
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
