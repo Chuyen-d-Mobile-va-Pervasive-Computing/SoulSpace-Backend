@@ -13,8 +13,8 @@ from app.repositories.user_test_result_repository import UserTestResultRepositor
 from app.repositories.user_repository import UserRepository
 from app.repositories.expert_repository import ExpertRepository
 from app.repositories.expert_schedule_repository import ExpertScheduleRepository
-from app.repositories.expert_schedule_repository import ExpertScheduleRepository
 from app.repositories.appointment_repository import AppointmentRepository
+from app.repositories.test_question_repository import TestQuestionRepository
 from app.services.common.email_service import EmailService
 from app.services.common.cloudinary_service import CloudinaryService
 from app.services.expert.expert_auth_service import ExpertAuthService
@@ -120,6 +120,9 @@ def get_test_repository(db: AsyncIOMotorDatabase = Depends(get_db)) -> TestRepos
 def get_user_test_result_repository(db: AsyncIOMotorDatabase = Depends(get_db)) -> UserTestResultRepository:
     return UserTestResultRepository(database=db)
 
+def get_question_repository(db: AsyncIOMotorDatabase = Depends(get_db)) -> TestQuestionRepository:
+    return TestQuestionRepository(database=db)
+
 
 # ===== Expert dependencies =====
 
@@ -186,9 +189,6 @@ def get_user_expert_service(
     user_repo: UserRepository = Depends(get_user_repository)
 ) -> UserExpertService:
     return UserExpertService(expert_repo, schedule_repo, user_repo)
-
-def get_expert_schedule_repository(db: AsyncIOMotorDatabase = Depends(get_database)):
-    return ExpertScheduleRepository(db)
 
 def get_expert_schedule_service(
     repo: ExpertScheduleRepository = Depends(get_expert_schedule_repository),
