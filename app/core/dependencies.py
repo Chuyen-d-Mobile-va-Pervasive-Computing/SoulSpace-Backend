@@ -238,3 +238,4 @@ def get_expert_dashboard_service(
     user_repo=Depends(get_user_repository)
 ) -> ExpertDashboardService:
     return ExpertDashboardService(appointment_repo, expert_repo, wallet_repo, user_repo)
+

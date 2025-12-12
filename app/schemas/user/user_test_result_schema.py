@@ -1,8 +1,9 @@
+# app/schemas/user/user_test_result_schema.py
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from app.utils.pyobjectid import PyObjectId
-from bson import ObjectId  # <--- Thêm dòng này
+from bson import ObjectId 
 
 class SnapshotQuestionSchema(BaseModel):
     question_id: PyObjectId
@@ -20,12 +21,13 @@ class UserTestResultSchema(BaseModel):
     id: PyObjectId = Field(alias="_id")
     user_id: PyObjectId
     test_id: PyObjectId
-    test_snapshot: TestSnapshotSchema
-    total_score: int
-    result_level: str
-    feedback: Optional[str] = None
+    test_snapshot: Optional[TestSnapshotSchema] = None
+    status: str
+    started_at: datetime
     completed_at: Optional[datetime] = None
-    created_at: Optional[datetime] = None
+    total_score: Optional[int] = None
+    result_level: Optional[str] = None
+    feedback: Optional[str] = None
 
 class SubmitAnswerSchema(BaseModel):
     question_id: PyObjectId
@@ -38,7 +40,7 @@ class AnswerResponseSchema(BaseModel):
     question_id: PyObjectId
     option_id: PyObjectId
     score_value: int
-
+    
     class Config:
         from_attributes = True
         validate_by_name = True
@@ -52,20 +54,18 @@ class UserTestResultResponseSchema(BaseModel):
     status: str
     started_at: datetime
     completed_at: Optional[datetime] = None
-
     total_score: Optional[int] = None
     severity_level: Optional[str] = None
     result_label: Optional[str] = None
     guidance_notes: Optional[str] = None
     needs_expert: Optional[bool] = None
-    
+ 
     answers: List[AnswerResponseSchema]
-
+    
     class Config:
         from_attributes = True
         validate_by_name = True
         json_encoders = {ObjectId: str}
-
 
 class CompletedTestSummarySchema(BaseModel):
     result_id: PyObjectId
@@ -75,7 +75,6 @@ class CompletedTestSummarySchema(BaseModel):
     completed_at: datetime
     severity_level: str
     score_ratio: str = Field(..., description="Tỷ lệ điểm, ví dụ '6/27'")
-
     class Config:
         from_attributes = True
         validate_by_name = True
@@ -101,7 +100,6 @@ class UserTestResultDetailSchema(BaseModel):
     guidance_notes: Optional[str]
     needs_expert: Optional[bool]
     answered_questions: List[AnswerDetailSchema]
-
     class Config:
         from_attributes = True
         validate_by_name = True
