@@ -10,7 +10,7 @@ import uuid
 import os
 from time import time
 
-router = APIRouter(prefix="/journal", tags=["👤 User - Journal (Nhật ký)"])
+router = APIRouter(prefix="/journal", tags=["User - Journal (Nhật ký)"])
 
 def serialize_journal(journal) -> JournalResponse:
     """Serialize Journal model to JournalResponse schema."""
@@ -18,13 +18,16 @@ def serialize_journal(journal) -> JournalResponse:
         id=str(journal.id),
         user_id=str(journal.user_id),
         created_at=journal.created_at,
-        emotion_label=journal.emotion_label,
-        text_content=journal.text_content,
+        emotion_label=journal.emotion_label or "Neutral",
+        text_content=journal.text_content or "",
         voice_note_path=journal.voice_note_path,
         voice_text=journal.voice_text,
-        sentiment_label=journal.sentiment_label,
-        sentiment_score=journal.sentiment_score,
-        tags=journal.tags,
+        sentiment_label=journal.sentiment_label or "Neutral",
+        sentiment_score=journal.sentiment_score or 0.0,
+        tags=journal.tags or [],
+        is_toxic=journal.is_toxic,
+        toxic_labels=journal.toxic_labels,
+        toxic_confidence=journal.toxic_confidence
     )
 
 @router.post("/", response_model=JournalResponse)

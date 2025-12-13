@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.services.common.toxic_detection_service import get_toxic_detection_service
 import assemblyai as aai
 from transformers import pipeline
+from datetime import datetime
 
 # Set AssemblyAI API key
 aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
@@ -20,7 +21,7 @@ else:
 sentiment_pipeline = pipeline(
     "sentiment-analysis",
     model=SENTIMENT_MODEL,
-    framework="pt"  # Force PyTorch backend to avoid TensorFlow/Keras import
+    framework="pt"
 )
 
 def analyze_sentiment(text: str):
@@ -61,10 +62,10 @@ class JournalService:
         """Create a new journal entry with STT, sentiment analysis, and toxic detection."""
         journal_dict = data.dict(exclude_unset=True)
         journal_dict["user_id"] = ObjectId(user_id)
+        journal_dict["created_at"] = datetime.utcnow()
 
         # Collect all text sources for comprehensive sentiment analysis
         text_sources = []
-        
         # Process voice note if provided
         if data.voice_note_path:
             with open(data.voice_note_path, "rb") as f:
@@ -72,11 +73,9 @@ class JournalService:
             journal_dict["voice_text"] = voice_text
             if voice_text and not voice_text.startswith("Transcription error"):
                 text_sources.append(voice_text)
-        
         # Add text content if provided
         if data.text_content:
             text_sources.append(data.text_content)
-        
         # Combine all text for sentiment analysis
         combined_text = " ".join(text_sources).strip()
 
@@ -84,12 +83,10 @@ class JournalService:
         toxic_labels = []
         toxic_confidence = 0.0
         is_toxic = False
-        
         if combined_text:
             try:
                 # Check if toxic API is available
                 is_api_healthy = await self.toxic_service.check_health()
-                
                 if is_api_healthy:
                     toxic_result = await self.toxic_service.analyze_text(combined_text, threshold=0.5)
                     toxic_labels = toxic_result.toxic_labels
@@ -98,7 +95,6 @@ class JournalService:
             except Exception as e:
                 # Log error but don't block journal creation
                 print(f"Toxic detection error: {e}")
-        
         # Store toxic analysis results
         journal_dict["is_toxic"] = is_toxic
         journal_dict["toxic_labels"] = toxic_labels
@@ -108,10 +104,8 @@ class JournalService:
         if combined_text:
             # AI sentiment analysis on combined text
             ai_label, ai_score = analyze_sentiment(combined_text)
-            
             # User emotion from icon selection
             icon_label, icon_score = ICON_SENTIMENT_MAP.get(data.emotion_label, ("Neutral", 0.0))
-            
             # Weighted combination: 70% AI + 30% user emotion
             # Use AI label but blend scores for nuanced result
             if ai_label == icon_label:
@@ -129,8 +123,7 @@ class JournalService:
 
         journal_dict["sentiment_label"] = label
         journal_dict["sentiment_score"] = round(score, 2)
-        journal_dict["tags"] = data.tags or []  # Ensure tags is List[str]
-        
+        journal_dict["tags"] = data.tags or []
         return await self.journal_repo.create(journal_dict)
 
     async def get_user_journals(self, user_id: str) -> list[Journal]:

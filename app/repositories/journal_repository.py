@@ -6,7 +6,7 @@ class JournalRepository:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.collection = db.get_collection("journals")
         self.collection.create_index([("user_id", 1), ("created_at", -1)])
-        self.collection.create_index("tags")  # Index for List[str]
+        self.collection.create_index("tags")
 
     async def create(self, journal: dict) -> Journal:
         result = await self.collection.insert_one(journal)
