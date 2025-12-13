@@ -15,6 +15,7 @@ class UserRepository:
                 "username": user.username,
                 "email": user.email,
                 "password": user.password,
+                "phone": user.phone,
                 "role": user.role,
                 "created_at": user.created_at,
                 "last_login_at": user.last_login_at,
@@ -30,8 +31,7 @@ class UserRepository:
             return user
         except Exception as e:
             if "duplicate key" in str(e):
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email or username already exists")
-                
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email, username, or phone number already exists")
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to create user: {str(e)}")
         
     async def get_by_id(self, user_id: str) -> Optional[User]:

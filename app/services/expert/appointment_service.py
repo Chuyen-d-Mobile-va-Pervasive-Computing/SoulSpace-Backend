@@ -1,3 +1,4 @@
+# app/services/expert/appointment_service.py
 from fastapi import HTTPException, status
 from app.repositories.appointment_repository import AppointmentRepository
 from app.repositories.payment_repository import PaymentRepository
@@ -5,6 +6,9 @@ from app.repositories.user_repository import UserRepository
 from app.repositories.expert_repository import ExpertRepository
 from app.services.common.email_service import EmailService
 from app.schemas.expert.appointment_schema import *
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ExpertAppointmentService:
     def __init__(
@@ -22,49 +26,53 @@ class ExpertAppointmentService:
         self.email_service = email_service
 
     async def get_list(self, expert_profile_id: str, status: str = None):
+        """Get list of appointments for expert"""
         appointments = await self.appointment_repo.get_by_expert_id(expert_profile_id, status)
         data = []
         for apm in appointments:
             user = await self.user_repo.get_by_id(str(apm.user_id))
-            expert_profile = await self.expert_repo.get_by_id(str(apm.expert_profile_id))
             if user:
                 data.append({
                     "_id": str(apm.id),
                     "appointment_id": str(apm.id),
                     "date": apm.appointment_date,
                     "start_time": apm.start_time,
-                    "expert_profile_id": str(apm.expert_profile_id),
                     "user": {
-                        "full_name": user.username or "User",
+                        "full_name": user.username or "Anonymous User",
                         "avatar_url": user.avatar_url or "",
-                        "phone": expert_profile.phone if expert_profile and getattr(expert_profile, "phone", None) is not None else None
+                        "phone": user.phone
                     }
                 })
         return ExpertAppointmentListResponse(data=data)
 
     async def get_detail(self, appointment_id: str, expert_profile_id: str):
+        """Get detailed appointment information for expert"""
         appointment = await self.appointment_repo.get_by_id_for_expert(appointment_id, expert_profile_id)
         if not appointment:
-            raise HTTPException(status_code=404, detail="Appointment not found or not pending")
+            raise HTTPException(status_code=404, detail="Appointment not found")
 
         user = await self.user_repo.get_by_id(str(appointment.user_id))
         expert = await self.expert_repo.get_by_id(str(appointment.expert_profile_id))
-        if user is None:
+
+        if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        if expert is None:
-            raise HTTPException(status_code=404, detail="Expert not found")
+        if not expert:
+            raise HTTPException(status_code=404, detail="Expert profile not found")
+
         return ExpertAppointmentDetailResponse(
             _id=str(appointment.id),
-            expert_profile_id=str(appointment.expert_profile_id), 
             user=UserInAppointment(
-                full_name=user.username,
+                full_name=user.username or "Anonymous User",
                 avatar_url=user.avatar_url or "",
-                phone=expert.phone if getattr(expert, "phone", None) is not None else ""
+                phone=user.phone
             ),
             appointment_date=appointment.appointment_date,
             start_time=appointment.start_time,
             end_time=appointment.end_time,
-            clinic={"name": expert.clinic_name, "address": expert.clinic_address},
+            clinic={
+                "name": expert.clinic_name or "Not specified",
+                "address": expert.clinic_address or "Not specified"
+            },
             pricing={
                 "price": appointment.price,
                 "vat": appointment.vat,
@@ -77,51 +85,120 @@ class ExpertAppointmentService:
         )
 
     async def action(self, appointment_id: str, expert_profile_id: str, action: str, reason: str = None):
+        """Accept or decline an appointment"""
         appointment = await self.appointment_repo.get_by_id_for_expert(appointment_id, expert_profile_id)
         if not appointment:
-            raise HTTPException(status_code=404, detail="Appointment not found or not pending")
+            raise HTTPException(status_code=404, detail="Appointment not found")
 
         payment = await self.payment_repo.get_latest_by_appointment(appointment_id)
 
         if action == "accept":
             if appointment.status != "pending":
-                raise HTTPException(status_code=400, detail="Appointment must be pending to accept")
+                raise HTTPException(status_code=400, detail="Only pending appointments can be accepted")
             if not payment:
-                raise HTTPException(status_code=400, detail="Payment not found")
+                raise HTTPException(status_code=400, detail="Payment information not found")
             if payment.method == "card" and payment.status != "paid":
-                raise HTTPException(status_code=400, detail="Payment must be paid for online method")
+                raise HTTPException(status_code=400, detail="Online payment must be completed before acceptance")
             if payment.method == "cash" and payment.status != "pending":
-                raise HTTPException(status_code=400, detail="Payment must be pending for cash method")
+                raise HTTPException(status_code=400, detail="Cash payment status invalid for acceptance")
 
-            # Transaction: update appointment, wallet, expert profile
+            # Accept transaction
             wallet = await self.appointment_repo.accept_appointment_transaction(appointment)
-            expert_profile = await self.expert_repo.get_by_id(str(appointment.expert_profile_id))
-            user = await self.user_repo.get_by_id(str(appointment.user_id))
-            expert = expert_profile
-            if user and expert:
-                await self.email_service.send_appointment_accepted_email(
-                    user_email=user.email,
-                    expert_name=expert.full_name,
-                    appointment_date=appointment.appointment_date,
-                    start_time=appointment.start_time,
-                    end_time=appointment.end_time,
-                    clinic_name=expert.clinic_name,
-                    clinic_address=expert.clinic_address
-                )
+
+            # Send confirmation email to user
+            try:
+                user = await self.user_repo.get_by_id(str(appointment.user_id))
+                expert = await self.expert_repo.get_by_id(str(appointment.expert_profile_id))
+                if user and expert:
+                    await self.email_service.send_appointment_accepted_email(
+                        user_email=user.email,
+                        expert_name=expert.full_name,
+                        appointment_date=appointment.appointment_date,
+                        start_time=appointment.start_time,
+                        end_time=appointment.end_time,
+                        clinic_name=expert.clinic_name or "Clinic",
+                        clinic_address=expert.clinic_address or "Address not provided"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to send acceptance email: {e}")
+
+            updated_expert = await self.expert_repo.get_by_id(str(appointment.expert_profile_id))
+
             return ExpertAppointmentActionResponse(
                 appointment_id=str(appointment.id),
                 status="upcoming",
-                wallet=WalletInfo(balance=wallet["balance"], total_earned=wallet["total_earned"]),
-                message=f"Chấp nhận lịch hẹn thành công. Tổng số bệnh nhân: {expert_profile.total_patients}"
+                wallet=WalletInfo(
+                    balance=wallet.get("balance", 0),
+                    total_earned=wallet.get("total_earned", 0)
+                ),
+                message=f"Appointment accepted successfully. Total patients: {updated_expert.total_patients if updated_expert else 'N/A'}"
             )
 
         elif action == "decline":
-            # Transaction: update appointment, free slot
             await self.appointment_repo.decline_appointment_transaction(appointment, reason)
-            # Payment handling
+
+            # Handle payment refund/failure
             if payment:
                 if payment.status == "paid":
                     await self.payment_repo.update_status(str(payment.id), "refunded")
+                    try:
+                        user = await self.user_repo.get_by_id(str(appointment.user_id))
+                        if user:
+                            await self.email_service.send_refund_email(
+                                user_email=user.email,
+                                amount=payment.amount,
+                                appointment_date=appointment.appointment_date,
+                                start_time=appointment.start_time
+                            )
+                    except Exception as e:
+                        logger.warning(f"Failed to send refund email: {e}")
+                elif payment.method == "cash" and payment.status == "pending":
+                    await self.payment_repo.update_status(str(payment.id), "failed")
+
+            # Notify user
+            try:
+                user = await self.user_repo.get_by_id(str(appointment.user_id))
+                expert = await self.expert_repo.get_by_id(str(appointment.expert_profile_id))
+                if user and expert:
+                    await self.email_service.send_appointment_declined_email(
+                        user_email=user.email,
+                        expert_name=expert.full_name,
+                        appointment_date=appointment.appointment_date,
+                        start_time=appointment.start_time,
+                        reason=reason or "No reason provided"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to send decline email: {e}")
+
+            return ExpertAppointmentActionResponse(
+                appointment_id=str(appointment.id),
+                status="cancelled",
+                message="Appointment has been declined"
+            )
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action. Must be 'accept' or 'decline'")
+
+    async def cancel_by_expert(self, appointment_id: str, expert_profile_id: str, reason: str):
+        """Cancel appointment by expert"""
+        if not reason or not reason.strip():
+            raise HTTPException(status_code=400, detail="Cancel reason is required")
+
+        appointment = await self.appointment_repo.get_by_id_for_expert(appointment_id, expert_profile_id)
+        if not appointment:
+            raise HTTPException(status_code=404, detail="Appointment not found")
+
+        if appointment.status not in ["pending", "upcoming"]:
+            raise HTTPException(status_code=400, detail="Only pending or upcoming appointments can be cancelled")
+
+        payment = await self.payment_repo.get_latest_by_appointment(appointment_id)
+
+        await self.appointment_repo.cancel_by_expert_transaction(appointment, reason)
+
+        # Handle refund for paid appointments
+        if payment:
+            if payment.method == "card" and payment.status == "paid":
+                await self.payment_repo.update_status(str(payment.id), "refunded")
+                try:
                     user = await self.user_repo.get_by_id(str(appointment.user_id))
                     if user:
                         await self.email_service.send_refund_email(
@@ -130,77 +207,28 @@ class ExpertAppointmentService:
                             appointment_date=appointment.appointment_date,
                             start_time=appointment.start_time
                         )
-                elif payment.method == "cash" and payment.status == "pending":
-                    await self.payment_repo.update_status(str(payment.id), "failed")
-            # Notify user
+                except Exception as e:
+                    logger.warning(f"Failed to send refund email: {e}")
+            elif payment.method == "cash" and payment.status == "pending":
+                await self.payment_repo.update_status(str(payment.id), "failed")
+
+        # Notify user
+        try:
             user = await self.user_repo.get_by_id(str(appointment.user_id))
             expert = await self.expert_repo.get_by_id(str(appointment.expert_profile_id))
             if user and expert:
-                await self.email_service.send_appointment_declined_email(
+                await self.email_service.send_appointment_cancelled_by_expert_email(
                     user_email=user.email,
                     expert_name=expert.full_name,
                     appointment_date=appointment.appointment_date,
                     start_time=appointment.start_time,
                     reason=reason
                 )
-            return ExpertAppointmentActionResponse(
-                appointment_id=str(appointment.id),
-                status="cancelled",
-                message="Lịch hẹn đã bị từ chối bởi chuyên gia"
-            )
-        else:
-            raise HTTPException(status_code=400, detail="Invalid action")
-
-    async def cancel_by_expert(self, appointment_id: str, expert_profile_id: str, reason: str):
-        if not reason or not reason.strip():
-            raise HTTPException(status_code=400, detail="Invalid cancel reason")
-
-        appointment = await self.appointment_repo.get_by_id_for_expert(appointment_id, expert_profile_id)
-        if not appointment:
-            raise HTTPException(status_code=404, detail="Appointment not found")
-
-        if appointment.status != "pending":
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot cancel appointment that is already completed or cancelled."
-            )
-
-        # Lấy payment
-        payment = await self.payment_repo.get_latest_by_appointment(appointment_id)
-
-        # Transaction: hủy lịch + giải phóng slot
-        await self.appointment_repo.cancel_by_expert_transaction(appointment, reason)
-
-        # Xử lý hoàn tiền / failed
-        if payment:
-            if payment.method == "card" and payment.status == "paid":
-                await self.payment_repo.update_status(str(payment.id), "refunded")
-                # Gửi email hoàn tiền
-                user = await self.user_repo.get_by_id(str(appointment.user_id))
-                if user:
-                    await self.email_service.send_refund_email(
-                        user_email=user.email,
-                        amount=payment.amount,
-                        appointment_date=appointment.appointment_date,
-                        start_time=appointment.start_time
-                    )
-            elif payment.method == "cash" and payment.status == "pending":
-                await self.payment_repo.update_status(str(payment.id), "failed")
-
-        # Gửi email thông báo hủy cho user
-        user = await self.user_repo.get_by_id(str(appointment.user_id))
-        expert = await self.expert_repo.get_by_id(str(appointment.expert_profile_id))
-        if user and expert:
-            await self.email_service.send_appointment_cancelled_by_expert_email(
-                user_email=user.email,
-                expert_name=expert.full_name,
-                appointment_date=appointment.appointment_date,
-                start_time=appointment.start_time,
-                reason=reason
-            )
+        except Exception as e:
+            logger.warning(f"Failed to send cancellation email: {e}")
 
         return ExpertAppointmentCancelResponse(
-            message="Hủy lịch hẹn thành công.",
+            message="Appointment cancelled successfully",
             appointment_id=appointment_id,
             status="cancelled"
         )

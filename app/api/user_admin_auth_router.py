@@ -11,7 +11,7 @@ from app.repositories.user_repository import UserRepository
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 
-router = APIRouter(prefix="/auth", tags=["🔐 Common - Authentication"])
+router = APIRouter(prefix="/auth", tags=["Common - Authentication"])
 
 def get_auth_service(db=Depends(get_db)):
     user_repo = UserRepository(db)

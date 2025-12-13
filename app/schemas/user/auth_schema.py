@@ -6,12 +6,19 @@ import re
 class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
+    phone: Optional[str] = Field(None, description="Phone number (optional)", pattern=r"^[0-9]{10}$")
     role: Optional[Literal["user", "admin"]] = "user"
 
     @validator("password")
     def validate_password(cls, v):
         if not re.match(r"^(?=.*[A-Z])(?=.*\d).{8,}$", v):
             raise ValueError("Password must be at least 8 characters with 1 uppercase and 1 number")
+        return v
+
+    @validator("phone")
+    def validate_phone(cls, v):
+        if v and not re.match(r"^[0-9]{10}$", v):
+            raise ValueError("Invalid phone number (must be exactly 10 digits)")
         return v
 
 class UserLogin(BaseModel):
@@ -21,6 +28,7 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     username: str
     email: EmailStr
+    phone: Optional[str] = None
     role: Literal["user", "admin"]
     created_at: str
     total_points: int
@@ -33,7 +41,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     username: str
-    role: Literal["user", "admin", "expert"]  # Added expert role
+    role: Literal["user", "admin", "expert"]
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr

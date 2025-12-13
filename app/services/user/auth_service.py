@@ -35,25 +35,33 @@ class AuthService:
         existing_user = await self.user_repo.get_by_email(user_data.email)
         if existing_user:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
-        
+
+        # Check phone if provided
+        if user_data.phone:
+            existing_phone = await self.user_repo.db.users.find_one({"phone": user_data.phone})
+            if existing_phone:
+                raise HTTPException(status_code=400, detail="Phone number is already in use")
+
         username = await self.generate_username()
         user = User(
             username=username,
             email=user_data.email,
             password=hash_password(user_data.password),
-            role="user"  # Luôn là user - Admin chỉ được tạo bởi admin khác
+            phone=user_data.phone,
+            role="user"
         )
         try:
             created_user = await self.user_repo.create(user)
             return UserResponse(
                 username=created_user.username,
                 email=created_user.email,
+                phone=created_user.phone,
                 role=created_user.role,
                 created_at=created_user.created_at.isoformat(),
                 total_points=created_user.total_points
             )
         except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to register user: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
     async def login(self, email: str, password: str) -> TokenResponse:
         user = await self.user_repo.get_by_email(email)

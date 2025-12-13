@@ -9,6 +9,7 @@ class User(BaseModel):
     username: str
     email: EmailStr
     password: str
+    phone: Optional[str] = None
     role: Literal["user", "admin", "expert"] = "user"
     avatar_url: Optional[str] = None  # Cloudinary URL for avatar
     is_active: bool = True
