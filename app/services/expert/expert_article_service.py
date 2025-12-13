@@ -28,3 +28,12 @@ class ExpertArticleService:
     async def update_article_status(self, article_id: str, status: str):
         approved_at = datetime.utcnow() if status == "approved" else None
         return await self.repo.update_status(article_id, status, approved_at)
+
+    async def list_articles_by_status(self, status: str, limit: int = 50):
+        """List articles filtered by status (pending, approved, rejected)"""
+        return await self.repo.list_by_status(status, limit)
+
+    async def list_all_articles(self, limit: int = 50):
+        """List all articles"""
+        return await self.repo.list_all(limit)
+

@@ -51,3 +51,12 @@ class ExpertArticleRepository:
             )
         
         return result
+
+    async def list_by_status(self, status: str, limit: int = 50):
+        """List articles by status"""
+        return await self.collection.find({"status": status}).sort("created_at", -1).to_list(length=limit)
+
+    async def list_all(self, limit: int = 50):
+        """List all articles"""
+        return await self.collection.find().sort("created_at", -1).to_list(length=limit)
+

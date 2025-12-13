@@ -14,6 +14,12 @@ class AnonPost(BaseModel):
     moderation_status: str = Field(default="Pending")  # Approved | Pending | Blocked
     ai_scan_result: str | None = None  # Safe | Suspicious | Unsafe
     flagged_reason: str | None = None
+    image_url: str | None = None  # URL ảnh đính kèm
+    
+    # AI Toxic detection fields
+    toxic_labels: list[str] = []
+    toxic_confidence: float = 0.0
+    toxic_predictions: dict = {}
 
     like_count: int = 0
     comment_count: int = 0

@@ -154,3 +154,80 @@ async def upload_expert_certificate(file: UploadFile = File(...), service: Cloud
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============================================
+# POST IMAGE UPLOADS
+# ============================================
+
+@router.post("/public/post-image", response_model=CloudinaryUploadResponseSchema)
+async def upload_post_image_public(
+    file: UploadFile = File(...), 
+    service: CloudinaryService = Depends()
+):
+    """
+    Upload ảnh bài viết CÔNG KHAI (không cần đăng nhập).
+    Dùng khi tạo bài viết ẩn danh.
+    """
+    try:
+        result = await service.upload_avatar(file)  # Reuse avatar upload for images
+        return CloudinaryUploadResponseSchema(
+            url=result["url"],
+            public_id=result.get("public_id"),
+            format=result.get("format"),
+            width=result.get("width"),
+            height=result.get("height"),
+            size=result.get("size")
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/user/post-image", response_model=CloudinaryUploadResponseSchema)
+async def upload_user_post_image(
+    file: UploadFile = File(...), 
+    service: CloudinaryService = Depends(),
+    user=Depends(get_current_user)
+):
+    """
+    Upload ảnh bài viết cho user đã đăng nhập.
+    """
+    try:
+        result = await service.upload_avatar(file)
+        return CloudinaryUploadResponseSchema(
+            url=result["url"],
+            public_id=result.get("public_id"),
+            format=result.get("format"),
+            width=result.get("width"),
+            height=result.get("height"),
+            size=result.get("size")
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/expert/article-image", response_model=CloudinaryUploadResponseSchema)
+async def upload_expert_article_image(
+    file: UploadFile = File(...), 
+    service: CloudinaryService = Depends(),
+    user=Depends(get_current_user)
+):
+    """
+    Upload ảnh bài viết chuyên gia.
+    """
+    try:
+        result = await service.upload_avatar(file)
+        return CloudinaryUploadResponseSchema(
+            url=result["url"],
+            public_id=result.get("public_id"),
+            format=result.get("format"),
+            width=result.get("width"),
+            height=result.get("height"),
+            size=result.get("size")
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

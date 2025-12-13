@@ -15,6 +15,10 @@ class Journal(BaseModel):
     sentiment_label: Optional[str] = None
     sentiment_score: Optional[float] = None
     tags: List[str] = []  # List of tag names
+    # Toxic detection fields
+    is_toxic: bool = False
+    toxic_labels: List[str] = []
+    toxic_confidence: float = 0.0
 
     class Config:
         populate_by_name = True

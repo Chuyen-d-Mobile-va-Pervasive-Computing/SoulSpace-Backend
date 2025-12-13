@@ -2,12 +2,13 @@
 Expert role API endpoints.
 These endpoints are for expert-only operations.
 """
-from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi import APIRouter, Depends, HTTPException, Security, UploadFile, File, Form
 from fastapi.security import HTTPBearer
 from app.core.dependencies import get_current_user, get_expert_service
 from app.core.permissions import Role, require_role
 from app.schemas.expert.expert_article_schema import ExpertArticleCreate, ExpertArticleResponse
 from app.services.expert.expert_article_service import ExpertArticleService
+from app.services.common.cloudinary_service import CloudinaryService
 from app.core.database import get_db
 
 # Security scheme for Swagger UI lock icon
@@ -96,9 +97,45 @@ async def create_article(payload: ExpertArticleCreate, db=Depends(get_db), curre
         image_url=payload.image_url
     )
 
+
+@router.post("/articles/with-image", response_model=ExpertArticleResponse)
+@require_role(Role.EXPERT)
+async def create_article_with_image(
+    title: str = Form(..., description="Tiêu đề bài viết"),
+    content: str = Form(..., description="Nội dung bài viết"),
+    hashtags: str = Form("", description="Danh sách hashtags, phân cách bằng dấu phẩy"),
+    image: UploadFile = File(None, description="Ảnh đính kèm (optional)"),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+    cloudinary_service: CloudinaryService = Depends()
+):
+    """
+    Tạo bài viết chuyên gia với ảnh đính kèm.
+    
+    - **title**: Tiêu đề bài viết (bắt buộc)
+    - **content**: Nội dung bài viết (bắt buộc)
+    - **hashtags**: Danh sách hashtags, phân cách bằng dấu phẩy (ví dụ: "health,mental")
+    - **image**: File ảnh (optional)
+    """
+    image_url = None
+    if image:
+        try:
+            result = await cloudinary_service.upload_avatar(image)
+            image_url = result["url"]
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to upload image: {str(e)}")
+    
+    service = ExpertArticleService(db)
+    return await service.create_article(
+        expert_id=str(current_user["_id"]),
+        title=title,
+        content=content,
+        image_url=image_url
+    )
+
+
 @router.get("/articles", response_model=list[ExpertArticleResponse])
 @require_role(Role.EXPERT)
 async def list_my_articles(db=Depends(get_db), current_user=Depends(get_current_user)):
     service = ExpertArticleService(db)
     return await service.get_expert_articles(str(current_user["_id"]))  # Convert to string
-

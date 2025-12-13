@@ -13,6 +13,7 @@ class AnonPostCreate(BaseModel):
     content: str = Field(..., min_length=1, max_length=5000, description="Nội dung bài viết")
     is_anonymous: bool = Field(default=True, description="True=Ẩn danh, False=Hiển thị tên")
     hashtags: List[str] = Field(default=[], description="Danh sách hashtags")
+    image_url: Optional[str] = Field(default=None, description="URL ảnh đính kèm")
 
 class AnonPostResponse(BaseModel):
     """
@@ -30,11 +31,16 @@ class AnonPostResponse(BaseModel):
     moderation_status: str = "Pending"
     ai_scan_result: Optional[str] = None
     flagged_reason: Optional[str] = None
+    image_url: Optional[str] = None
     like_count: int = 0
     comment_count: int = 0
     detected_keywords: List[str] = []
     is_liked: bool = False
     is_owner: bool = False
+    # AI Toxic detection fields
+    toxic_labels: List[str] = []
+    toxic_confidence: float = 0.0
+    toxic_predictions: dict = {}
 
     @field_validator('hashtags', mode='before')
     @classmethod

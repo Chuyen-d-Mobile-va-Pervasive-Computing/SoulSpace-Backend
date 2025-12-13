@@ -23,3 +23,7 @@ class JournalResponse(BaseModel):
     sentiment_label: str
     sentiment_score: float
     tags: Optional[List[str]] = None
+    # Toxic detection fields
+    is_toxic: bool = False
+    toxic_labels: List[str] = []
+    toxic_confidence: float = 0.0

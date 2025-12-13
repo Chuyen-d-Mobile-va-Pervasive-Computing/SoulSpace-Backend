@@ -14,10 +14,16 @@ httpx
 pydantic-settings
 certifi
 email-validator
-transformers==4.56.1
+transformers
 torch
 assemblyai
 cloudinary>=1.36.0
 python-multipart>=0.0.6
 Pillow>=10.1.0
 pytz
+nltk
+scikit-learn
+scipy
+numpy
+pandas
+

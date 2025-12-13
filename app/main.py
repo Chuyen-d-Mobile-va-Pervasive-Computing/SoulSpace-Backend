@@ -28,6 +28,7 @@ from app.api.admin.admin_router import router as admin_router
 from app.api.admin.expert_management_router import router as expert_management_router
 from app.api.admin.test_router import router as admin_test_router
 from app.api.common.cloudinary_router import router as cloudinary_router
+from app.api.common.ai_router import router as ai_router
 
 
 # Expert routers
@@ -74,6 +75,7 @@ app.include_router(admin_router, prefix=API_PREFIX)
 app.include_router(expert_management_router, prefix=API_PREFIX)
 app.include_router(admin_test_router, prefix=API_PREFIX)
 app.include_router(cloudinary_router, prefix=API_PREFIX)
+app.include_router(ai_router, prefix=API_PREFIX)  # AI Sentiment Analysis
 
 # Expert routes
 app.include_router(expert_router, prefix=API_PREFIX)

@@ -194,6 +194,194 @@ async def list_all_posts(
     
     return enriched_posts
 
+
+@router.get("/posts/pending")
+@require_role(Role.ADMIN)
+async def list_pending_posts(
+    limit: int = Query(50, ge=1, le=200),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Lấy danh sách bài viết đang chờ duyệt (Pending)."""
+    collection = db["anon_posts"]
+    users_collection = db["users"]
+    
+    cursor = collection.find({"moderation_status": "Pending"}).sort("created_at", -1).limit(limit)
+    posts = await cursor.to_list(length=limit)
+    
+    enriched_posts = []
+    for post in posts:
+        user = await users_collection.find_one({"_id": post.get("user_id")}, {"username": 1, "email": 1})
+        post["_id"] = str(post["_id"])
+        post["user_id"] = str(post.get("user_id", ""))
+        post["username"] = user.get("username", "Unknown") if user else "Unknown"
+        enriched_posts.append(post)
+    
+    return enriched_posts
+
+
+@router.get("/posts/approved")
+@require_role(Role.ADMIN)
+async def list_approved_posts(
+    limit: int = Query(50, ge=1, le=200),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Lấy danh sách bài viết đã duyệt (Approved)."""
+    collection = db["anon_posts"]
+    
+    cursor = collection.find({"moderation_status": "Approved"}).sort("created_at", -1).limit(limit)
+    posts = await cursor.to_list(length=limit)
+    
+    for post in posts:
+        post["_id"] = str(post["_id"])
+        post["user_id"] = str(post.get("user_id", ""))
+    
+    return posts
+
+
+@router.get("/posts/moderation")
+@require_role(Role.ADMIN)
+async def list_posts_for_moderation(
+    status: str = Query(None, description="Filter: Approved, Pending, Blocked"),
+    risk_level: str = Query(None, description="Filter by AI risk level"),
+    sentiment: str = Query(None, description="Filter by sentiment"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Lấy danh sách bài viết cho moderation với các bộ lọc nâng cao."""
+    collection = db["anon_posts"]
+    users_collection = db["users"]
+    
+    query = {}
+    if status:
+        query["moderation_status"] = status
+    if risk_level:
+        query["ai_risk_level"] = risk_level
+    if sentiment:
+        query["ai_sentiment"] = sentiment
+    
+    total = await collection.count_documents(query)
+    cursor = collection.find(query).sort("created_at", -1).skip(skip).limit(limit)
+    posts = await cursor.to_list(length=limit)
+    
+    enriched_posts = []
+    for post in posts:
+        user = await users_collection.find_one({"_id": post.get("user_id")}, {"username": 1, "email": 1})
+        post["_id"] = str(post["_id"])
+        post["user_id"] = str(post.get("user_id", ""))
+        post["username"] = user.get("username", "Unknown") if user else "Unknown"
+        post["user_email"] = user.get("email", "") if user else ""
+        enriched_posts.append(post)
+    
+    return {
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "posts": enriched_posts
+    }
+
+
+@router.get("/posts/{post_id}/detail")
+@require_role(Role.ADMIN)
+async def get_post_detail_admin(
+    post_id: str,
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Lấy chi tiết bài viết kèm thông tin user, reports và AI analysis."""
+    posts_collection = db["anon_posts"]
+    users_collection = db["users"]
+    reports_collection = db["reports"]
+    
+    try:
+        post = await posts_collection.find_one({"_id": ObjectId(post_id)})
+    except:
+        raise HTTPException(status_code=400, detail="Invalid post_id format")
+    
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Get user info
+    user = await users_collection.find_one({"_id": post.get("user_id")}, {"username": 1, "email": 1})
+    
+    # Get reports for this post
+    reports = await reports_collection.find({"target_id": post_id}).to_list(length=100)
+    for report in reports:
+        report["_id"] = str(report["_id"])
+    
+    post["_id"] = str(post["_id"])
+    post["user_id"] = str(post.get("user_id", ""))
+    post["username"] = user.get("username", "Unknown") if user else "Unknown"
+    post["user_email"] = user.get("email", "") if user else ""
+    post["reports"] = reports
+    post["report_count"] = len(reports)
+    
+    return post
+
+
+@router.put("/posts/{post_id}/status")
+@require_role(Role.ADMIN)
+async def update_post_status(
+    post_id: str,
+    status: str = Query(..., description="New status: Approved or Hidden"),
+    reason: str = Query(None, description="Reason for status change"),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Cập nhật trạng thái bài viết."""
+    if status not in ["Approved", "Hidden", "Blocked", "Pending"]:
+        raise HTTPException(status_code=400, detail="Invalid status. Use: Approved, Hidden, Blocked, Pending")
+    
+    collection = db["anon_posts"]
+    
+    try:
+        result = await collection.update_one(
+            {"_id": ObjectId(post_id)},
+            {"$set": {"moderation_status": status, "status_reason": reason}}
+        )
+    except:
+        raise HTTPException(status_code=400, detail="Invalid post_id format")
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    return {"message": f"Post status updated to {status}", "post_id": post_id}
+
+
+@router.put("/posts/batch-status")
+@require_role(Role.ADMIN)
+async def batch_update_post_status(
+    post_ids: list[str] = Query(..., description="List of post IDs"),
+    status: str = Query(..., description="New status: Approved or Hidden"),
+    reason: str = Query(None, description="Reason for status change"),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Cập nhật trạng thái nhiều bài viết cùng lúc."""
+    if status not in ["Approved", "Hidden", "Blocked", "Pending"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    
+    collection = db["anon_posts"]
+    
+    try:
+        object_ids = [ObjectId(pid) for pid in post_ids]
+    except:
+        raise HTTPException(status_code=400, detail="Invalid post_id format in list")
+    
+    result = await collection.update_many(
+        {"_id": {"$in": object_ids}},
+        {"$set": {"moderation_status": status, "status_reason": reason}}
+    )
+    
+    return {
+        "message": f"Updated {result.modified_count} posts to status {status}",
+        "modified_count": result.modified_count
+    }
+
+
 @router.delete("/posts/{post_id}")
 @require_role(Role.ADMIN)
 async def delete_post(post_id: str, reason: str, db=Depends(get_db), user=Depends(get_current_user)):
@@ -491,4 +679,223 @@ async def get_stats(
     return result
 
 
+# --- AI Integration ---
+@router.post("/ai/webhook/analysis-result")
+@require_role(Role.ADMIN)
+async def receive_ai_analysis_result(
+    post_id: str = Query(..., description="Post ID"),
+    sentiment: str = Query(..., description="Sentiment from AI"),
+    risk_level: str = Query(..., description="Risk level from AI"),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """
+    Webhook nhận kết quả phân tích từ AI.
+    Tự động cập nhật trạng thái bài viết dựa trên risk level.
+    """
+    collection = db["anon_posts"]
+    
+    try:
+        post = await collection.find_one({"_id": ObjectId(post_id)})
+    except:
+        raise HTTPException(status_code=400, detail="Invalid post_id format")
+    
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Determine action based on risk level
+    new_status = "Approved"
+    if risk_level in ["high", "critical"]:
+        new_status = "Blocked"
+    elif risk_level == "medium":
+        new_status = "Pending"
+    
+    await collection.update_one(
+        {"_id": ObjectId(post_id)},
+        {"$set": {
+            "ai_sentiment": sentiment,
+            "ai_risk_level": risk_level,
+            "moderation_status": new_status if post.get("moderation_status") == "Pending" else post.get("moderation_status")
+        }}
+    )
+    
+    return {
+        "message": "AI analysis result received",
+        "post_id": post_id,
+        "sentiment": sentiment,
+        "risk_level": risk_level,
+        "updated_status": new_status
+    }
 
+
+@router.post("/posts/{post_id}/ai-feedback")
+@require_role(Role.ADMIN)
+async def submit_ai_feedback(
+    post_id: str,
+    is_correct: bool = Query(..., description="AI prediction is correct?"),
+    correct_sentiment: str = Query(None, description="Correct sentiment if AI was wrong"),
+    correct_risk_level: str = Query(None, description="Correct risk level if AI was wrong"),
+    feedback_note: str = Query(None, description="Additional feedback note"),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Gửi feedback cho AI về kết quả phân tích."""
+    collection = db["ai_feedbacks"]
+    
+    feedback = {
+        "post_id": post_id,
+        "is_correct": is_correct,
+        "correct_sentiment": correct_sentiment,
+        "correct_risk_level": correct_risk_level,
+        "feedback_note": feedback_note,
+        "admin_id": str(current_user["_id"]),
+        "created_at": datetime.utcnow()
+    }
+    
+    await collection.insert_one(feedback)
+    
+    return {"message": "AI feedback submitted", "post_id": post_id}
+
+
+@router.get("/stats/ai-analysis")
+@require_role(Role.ADMIN)
+async def get_ai_analysis_stats(
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Thống kê sentiment/risk level từ AI."""
+    collection = db["anon_posts"]
+    
+    # Sentiment distribution
+    sentiment_stats = await collection.aggregate([
+        {"$match": {"ai_sentiment": {"$exists": True, "$ne": None}}},
+        {"$group": {"_id": "$ai_sentiment", "count": {"$sum": 1}}}
+    ]).to_list(length=100)
+    
+    # Risk level distribution
+    risk_stats = await collection.aggregate([
+        {"$match": {"ai_risk_level": {"$exists": True, "$ne": None}}},
+        {"$group": {"_id": "$ai_risk_level", "count": {"$sum": 1}}}
+    ]).to_list(length=100)
+    
+    # Status distribution
+    status_stats = await collection.aggregate([
+        {"$group": {"_id": "$moderation_status", "count": {"$sum": 1}}}
+    ]).to_list(length=100)
+    
+    return {
+        "sentiment": {item["_id"]: item["count"] for item in sentiment_stats},
+        "risk_level": {item["_id"]: item["count"] for item in risk_stats},
+        "status": {item["_id"]: item["count"] for item in status_stats}
+    }
+
+
+@router.get("/stats/overview")
+@require_role(Role.ADMIN)
+async def get_overview_stats(
+    period: Optional[Literal["today", "week", "month", "all"]] = Query("today"),
+    date: Optional[str] = Query(None, description="Specific date: YYYY-MM-DD"),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Dashboard nâng cao với nhiều thống kê chi tiết."""
+    now = datetime.utcnow()
+    
+    # Calculate date filter
+    start_date = None
+    if date:
+        try:
+            specific_date = datetime.strptime(date, "%Y-%m-%d")
+            start_date = specific_date
+        except:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    elif period == "today":
+        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif period == "week":
+        start_date = now - timedelta(days=7)
+    elif period == "month":
+        start_date = now - timedelta(days=30)
+    
+    date_filter = {"created_at": {"$gte": start_date}} if start_date else {}
+    
+    # Aggregate stats
+    users_today = await db["users"].count_documents(date_filter)
+    posts_today = await db["anon_posts"].count_documents(date_filter)
+    comments_today = await db["anon_comments"].count_documents(date_filter)
+    reports_today = await db["reports"].count_documents(date_filter)
+    
+    return {
+        "period": period or "all",
+        "date": date,
+        "stats": {
+            "users": users_today,
+            "posts": posts_today,
+            "comments": comments_today,
+            "reports": reports_today
+        },
+        "generated_at": now.isoformat()
+    }
+
+
+# --- User Violation ---
+@router.get("/users/{user_id}/violations")
+@require_role(Role.ADMIN)
+async def get_user_violations(
+    user_id: str,
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Lấy lịch sử vi phạm của user."""
+    # Get blocked/hidden posts
+    blocked_posts = await db["anon_posts"].find({
+        "user_id": ObjectId(user_id),
+        "moderation_status": {"$in": ["Blocked", "Hidden"]}
+    }).to_list(length=100)
+    
+    # Get reports against this user
+    user_reports = await db["reports"].find({
+        "target_user_id": user_id
+    }).to_list(length=100)
+    
+    for post in blocked_posts:
+        post["_id"] = str(post["_id"])
+        post["user_id"] = str(post.get("user_id", ""))
+    
+    for report in user_reports:
+        report["_id"] = str(report["_id"])
+    
+    return {
+        "user_id": user_id,
+        "blocked_posts": blocked_posts,
+        "blocked_posts_count": len(blocked_posts),
+        "reports_against": user_reports,
+        "reports_count": len(user_reports)
+    }
+
+
+# --- Expert Articles Management Extended ---
+@router.get("/expert-articles/approved", response_model=list[ExpertArticleResponse])
+@require_role(Role.ADMIN)
+async def list_approved_expert_articles(
+    limit: int = Query(50, ge=1, le=200),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Lấy danh sách bài viết expert đã duyệt."""
+    service = ExpertArticleService(db)
+    return await service.list_articles_by_status("approved", limit)
+
+
+@router.get("/expert-articles")
+@require_role(Role.ADMIN)
+async def list_all_expert_articles(
+    status: str = Query(None, description="Filter: pending, approved, rejected"),
+    limit: int = Query(50, ge=1, le=200),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Lấy danh sách tất cả bài viết expert với filter."""
+    service = ExpertArticleService(db)
+    if status:
+        return await service.list_articles_by_status(status, limit)
+    return await service.list_all_articles(limit)

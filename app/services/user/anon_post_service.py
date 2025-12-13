@@ -5,72 +5,85 @@ from app.repositories.anon_post_repository import AnonPostRepository
 from app.models.anon_post_model import AnonPost
 from app.repositories.moderation_log_repository import ModerationLogRepository
 from app.services.common.notification_service import NotificationService
+from app.services.common.toxic_detection_service import get_toxic_detection_service
 
 class AnonPostService:
     def __init__(self, db):
         self.db = db
         self.post_repo = AnonPostRepository(db)
         self.log_repo = ModerationLogRepository(db)
-        self.keywords_collection = db["sensitive_keywords"]
         self.notification_service = NotificationService(db)
+        self.toxic_service = get_toxic_detection_service()
 
-    async def create_post(self, user_id: str, content: str, is_anonymous: bool = True, hashtags: list[str] = []):
+    async def create_post(self, user_id: str, content: str, is_anonymous: bool = True, hashtags: list[str] = [], image_url: str = None):
         """
-        Tạo bài viết mới.
+        Tạo bài viết mới với AI toxic detection.
         - is_anonymous=True: Đăng ẩn danh
         - is_anonymous=False: Đăng bằng tên tài khoản
+        - image_url: URL ảnh đính kèm (optional)
         """
-        detected = []
+        from bson import ObjectId
+        
+        # Default values
         action = "Approved"
         scan_result = "Safe"
         flagged_reason = None
-
-        # --- Load keywords ---
-        keywords = await self.keywords_collection.find().to_list(length=1000)
-
-        # --- Kiểm duyệt keyword ---
-        for kw in keywords:
-            base = kw["keyword"].lower()
-            variations = [v.lower() for v in kw.get("variations", [])]
-            all_terms = [base] + variations
-
-            for term in all_terms:
-                # regex word boundary để tránh match trong từ khác
-                if len(term) <= 3:
-                    # ví dụ "od", "kms", "die"
-                    pattern = re.compile(rf"\b{re.escape(term)}\b", re.IGNORECASE)
-                else:
-                    # cho phép tìm trong chuỗi (slang, cụm dài)
-                    pattern = re.compile(re.escape(term), re.IGNORECASE)
-
-                if pattern.search(content):
-                    detected.append(term)
-                    if kw["severity"] == "hard":
+        toxic_labels = []
+        toxic_confidence = 0.0
+        toxic_predictions = {}
+        
+        # --- AI Toxic Detection ---
+        try:
+            # Check if toxic API is available
+            is_api_healthy = await self.toxic_service.check_health()
+            
+            if is_api_healthy:
+                # Use AI model for toxic detection
+                toxic_result = await self.toxic_service.analyze_text(content, threshold=0.5)
+                
+                toxic_labels = toxic_result.toxic_labels
+                toxic_confidence = toxic_result.confidence
+                toxic_predictions = toxic_result.predictions
+                
+                if toxic_result.is_violation:
+                    # Check severity based on toxic types
+                    severe_types = ["severe_toxic", "threat", "identity_hate"]
+                    has_severe = any(label in toxic_labels for label in severe_types)
+                    
+                    if has_severe or toxic_confidence >= 0.8:
                         action = "Blocked"
                         scan_result = "Unsafe"
-                        flagged_reason = f"Hard block keyword detected: {term}"
-                    elif kw["severity"] == "soft" and action != "Blocked":
+                        flagged_reason = f"AI detected toxic content: {', '.join(toxic_labels)} (confidence: {toxic_confidence:.2%})"
+                    else:
                         action = "Pending"
                         scan_result = "Suspicious"
-                        flagged_reason = f"Soft block keyword detected: {term}"
-
-        # --- Kiểm duyệt link ---
+                        flagged_reason = f"AI flagged for review: {', '.join(toxic_labels)} (confidence: {toxic_confidence:.2%})"
+            else:
+                # Fallback: API not available, approve but flag for manual review
+                scan_result = "Not Scanned"
+                flagged_reason = "AI service unavailable - manual review required"
+                
+        except Exception as e:
+            # Error in AI detection - approve but log error
+            scan_result = "Error"
+            flagged_reason = f"AI scan error: {str(e)}"
+        
+        # --- Basic content validation (keep these checks) ---
+        # Check for links
         if re.search(r"(https?:\/\/\S+|(?:www\.)?[a-zA-Z0-9-]+\.[a-z]{2,}(\/\S*)?)", content, re.IGNORECASE):
-            detected.append("link")
-            action = "Blocked"
-            scan_result = "Unsafe"
-            flagged_reason = "Post contains link"
-
-        # --- Kiểm duyệt số điện thoại ---
+            if action == "Approved":
+                action = "Pending"
+                scan_result = "Suspicious"
+            flagged_reason = (flagged_reason or "") + " | Contains link"
+        
+        # Check for phone numbers
         if re.search(r"\b(?:\+?\d[\d\-\s]{8,14}\d)\b", content):
-            detected.append("phone_number")
-            action = "Blocked"
-            scan_result = "Unsafe"
-            flagged_reason = "Post contains phone number"
-
-        # --- Tạo post ---
-        # Ensure user_id is ObjectId for database storage
-        from bson import ObjectId
+            if action == "Approved":
+                action = "Pending"
+                scan_result = "Suspicious"
+            flagged_reason = (flagged_reason or "") + " | Contains phone number"
+        
+        # --- Create post ---
         user_oid = ObjectId(user_id) if isinstance(user_id, str) else user_id
         
         post_data = AnonPost(
@@ -78,6 +91,7 @@ class AnonPostService:
             content=content,
             is_anonymous=is_anonymous,
             hashtags=hashtags,
+            image_url=image_url,
             created_at=datetime.utcnow(),
             moderation_status=action,
             ai_scan_result=scan_result,
@@ -85,6 +99,11 @@ class AnonPostService:
             like_count=0,
             comment_count=0,
         ).dict(by_alias=True)
+        
+        # Add AI analysis fields
+        post_data["toxic_labels"] = toxic_labels
+        post_data["toxic_confidence"] = toxic_confidence
+        post_data["toxic_predictions"] = toxic_predictions
         
         # Remove the auto-generated _id and let MongoDB generate a proper ObjectId
         if "_id" in post_data:
@@ -101,27 +120,29 @@ class AnonPostService:
             content_type="post",
             user_id=user_id,
             text=content,
-            detected_keywords=detected,
+            detected_keywords=toxic_labels,
             action=action
         )
         
         # Enrich post với author info
         enriched_post = await self.post_repo._enrich_post(new_post, str(user_id))
-        enriched_post["detected_keywords"] = detected
+        enriched_post["detected_keywords"] = toxic_labels
+        enriched_post["toxic_confidence"] = toxic_confidence
+        enriched_post["toxic_predictions"] = toxic_predictions
 
         # --- Notification Logic ---
         if action == "Blocked":
             await self.notification_service.create_notification(
                 user_id=user_id,
                 title="Bài viết bị chặn",
-                message=f"Bài viết của bạn đã bị chặn vì lý do: {flagged_reason}. Nếu bạn cần giúp đỡ, hãy liên hệ với chuyên gia.",
+                message=f"Bài viết của bạn đã bị chặn vì phát hiện nội dung không phù hợp. Nếu bạn cần hỗ trợ, hãy liên hệ với chuyên gia tâm lý.",
                 type="alert"
             )
         elif action == "Pending":
              await self.notification_service.create_notification(
                 user_id=user_id,
                 title="Bài viết đang chờ duyệt",
-                message=f"Bài viết của bạn có nội dung cần xem xét: {flagged_reason}. Chúng tôi sẽ thông báo khi có kết quả.",
+                message="Bài viết của bạn đang được xem xét. Chúng tôi sẽ thông báo khi có kết quả.",
                 type="system"
             )
         

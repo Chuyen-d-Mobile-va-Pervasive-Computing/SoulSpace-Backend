@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from typing import Optional, List
 from app.schemas.user.anon_post_schema import AnonPostCreate, AnonPostResponse
 from app.services.user.anon_post_service import AnonPostService
+from app.services.common.cloudinary_service import CloudinaryService
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_current_user_optional
 
@@ -10,22 +11,43 @@ router = APIRouter(prefix="/anon-posts", tags=["👤 User - Posts (Bài viết c
 
 @router.post("/", response_model=AnonPostResponse)
 async def create_post(
-    payload: AnonPostCreate, 
-    db=Depends(get_db), 
-    user=Depends(get_current_user)
+    content: str = Form(..., description="Nội dung bài viết"),
+    is_anonymous: bool = Form(True, description="True = ẩn danh, False = hiển thị tên"),
+    hashtags: str = Form("", description="Danh sách hashtags, phân cách bằng dấu phẩy (ví dụ: 'sharing,public')"),
+    image: UploadFile = File(None, description="Ảnh đính kèm (optional)"),
+    db=Depends(get_db),
+    user=Depends(get_current_user),
+    cloudinary_service: CloudinaryService = Depends()
 ):
     """
-    Tạo bài viết mới.
+    Tạo bài viết mới (có thể đính kèm ảnh).
     
-    - **is_anonymous=True** (mặc định): Đăng ẩn danh, không hiển thị tên
-    - **is_anonymous=False**: Đăng bằng tên tài khoản, hiển thị username
+    - **content**: Nội dung bài viết (bắt buộc)
+    - **is_anonymous**: True = ẩn danh, False = hiển thị tên (mặc định: True)
+    - **hashtags**: Danh sách hashtags, phân cách bằng dấu phẩy
+    - **image**: File ảnh đính kèm (optional)
+    
+    AI Toxic Detection sẽ tự động phân tích nội dung.
     """
+    # Upload image if provided
+    image_url = None
+    if image and image.filename:
+        try:
+            result = await cloudinary_service.upload_avatar(image)
+            image_url = result["url"]
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to upload image: {str(e)}")
+    
+    # Parse hashtags from comma-separated string
+    hashtag_list = [h.strip() for h in hashtags.split(",") if h.strip()] if hashtags else []
+    
     service = AnonPostService(db)
     post = await service.create_post(
         user_id=user["_id"], 
-        content=payload.content,
-        is_anonymous=payload.is_anonymous,
-        hashtags=payload.hashtags
+        content=content,
+        is_anonymous=is_anonymous,
+        hashtags=hashtag_list,
+        image_url=image_url
     )
     return post
 
