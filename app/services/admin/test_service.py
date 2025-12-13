@@ -1,145 +1,113 @@
-# app/services/admin/test_service.py
-from fastapi import Depends
-from app.repositories.test_repository import TestRepository
-from app.repositories.test_question_repository import TestQuestionRepository
 from bson import ObjectId
+from typing import Dict
 from datetime import datetime
-from typing import List
-from app.core.dependencies import get_test_repository, get_question_repository
-from app.utils.convert import convert_objectid_to_str
-import logging
+from app.repositories.test_repository import TestRepository
+from app.repositories.user_test_result_repository import UserTestResultRepository
+from app.services.common.email_service import EmailService
+from app.schemas.admin.test_schema import TestUpdatePayloadSchema, TestCreateSchema
+from fastapi import Depends
 
-logger = logging.getLogger(__name__)
+class TestNotFoundError(Exception): pass
+class TestAlreadyExistsError(Exception): pass
 
 class AdminTestService:
-    def __init__(self, test_repo: TestRepository, question_repo: TestQuestionRepository):
+    def __init__(self, test_repo: TestRepository, result_repo: UserTestResultRepository, email_service: EmailService):
         self.test_repo = test_repo
-        self.question_repo = question_repo
+        self.result_repo = result_repo
+        self.email_service = email_service
 
-    async def _normalize_orders_and_options(self, questions: List[dict]):
-        """Tự động gán order và option_id cho toàn bộ questions"""
-        for q_idx, q in enumerate(questions, start=1):
-            # GÁN LẠI question_order THEO THỨ TỰ MẢNG (quan trọng nhất!)
-            q["question_order"] = q_idx
+    async def create_test(self, payload: TestCreateSchema, admin_id: ObjectId) -> Dict:
+        # 1. Check duplicate
+        existing_test = await self.test_repo.get_test_by_code(payload.test_code)
+        if existing_test:
+            raise TestAlreadyExistsError(f"Test code '{payload.test_code}' already exists.")
 
-            for o_idx, opt in enumerate(q.get("options", []), start=1):
-                opt["option_order"] = o_idx
-                if not opt.get("option_id"):
-                    opt["option_id"] = str(ObjectId())
-                else:
-                    opt["option_id"] = str(opt["option_id"])
-
-    async def get_all_tests(self):
-        tests = await self.test_repo.get_all_tests()
-        result = []
-        for test in tests:
-            questions = await self.question_repo.get_questions_by_test_id(test["_id"], include_deleted=False)
-            await self._normalize_orders_and_options(questions)
-            test["questions"] = questions
-            test["num_questions"] = len(questions)
-            result.append(test)
-        return [convert_objectid_to_str(t) for t in result]
-
-    async def get_test_detail(self, test_id: ObjectId):
-        test = await self.test_repo.get_test_by_id(test_id)
-        if not test or test.get("is_deleted"):
-            return None
-        questions = await self.question_repo.get_questions_by_test_id(test_id, include_deleted=False)
-        await self._normalize_orders_and_options(questions)
-        test["questions"] = questions
-        return convert_objectid_to_str(test)
-
-    async def create_test(self, test_data: dict, questions_data: List[dict], user_id: str):
-        if await self.test_repo.collection.find_one({"test_code": test_data["test_code"], "is_deleted": False}):
-            raise ValueError("Test code already exists")
-
-        if test_data.get("severe_threshold", 0) <= 0:
-            raise ValueError("severe_threshold must be greater than 0")
-
-        if not questions_data:
-            raise ValueError("At least one question is required")
-
-        for q in questions_data:
-            if len(q.get("options", [])) < 2:
-                raise ValueError("Each question must have at least 2 options")
-
+        # 2. Insert Test Info
+        test_data = payload.model_dump(exclude={"questions"})
         test_data.update({
-            "created_by": ObjectId(user_id),
+            "num_questions": len(payload.questions),
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow(),
+            "created_by": admin_id,
+            "updated_by": admin_id,
             "is_deleted": False
         })
-
-        result = await self.test_repo.collection.insert_one(test_data)
+        
+        result = await self.test_repo.tests_collection.insert_one(test_data)
         test_id = result.inserted_id
+        test_data["_id"] = test_id
 
-        await self._normalize_orders_and_options(questions_data)
-        for q in questions_data:
-            q.update({
-                "test_id": test_id,
-                "created_at": datetime.utcnow(),
-                "is_deleted": False
-            })
-            await self.question_repo.collection.insert_one(q)
+        # 3. Insert Questions 
+        if payload.questions:
+            await self._insert_formatted_questions(test_id, payload.questions)
 
-        return convert_objectid_to_str(await self.get_test_detail(test_id))
+        return test_data
 
-    async def update_test(self, test_id: ObjectId, update_data: dict):
-        test = await self.test_repo.get_test_by_id(test_id)
-        if not test or test.get("is_deleted"):
-            raise ValueError("Test not found or has been deleted")
-
-        # Cập nhật các field của test
-        test_update = {k: v for k, v in update_data.items() if k != "questions" and v is not None}
-        if test_update:
-            test_update["updated_at"] = datetime.utcnow()
-            await self.test_repo.collection.update_one({"_id": test_id}, {"$set": test_update})
-
-        # XỬ LÝ QUESTIONS - QUAN TRỌNG NHẤT
-        questions_payload = update_data.get("questions", [])
-        if questions_payload:
-            # TỰ ĐỘNG GÁN LẠI ORDER THEO THỨ TỰ MẢNG
-            await self._normalize_orders_and_options(questions_payload)
-
-            for q in questions_payload:
-                qid = q.get("_id") or q.get("id")
-                q_clean = {k: v for k, v in q.items() if k not in ["_id", "id"]}
-                q_clean["test_id"] = test_id
-                q_clean["updated_at"] = datetime.utcnow()
-
-                if qid:
-                    # UPDATE
-                    result = await self.question_repo.collection.update_one(
-                        {"_id": ObjectId(qid), "test_id": test_id},
-                        {"$set": q_clean}
-                    )
-                    if result.matched_count == 0:
-                        raise ValueError(f"Question {qid} not found")
-                else:
-                    # CREATE NEW
-                    q_clean["created_at"] = datetime.utcnow()
-                    q_clean["is_deleted"] = False
-                    await self.question_repo.collection.insert_one(q_clean)
-
-        return convert_objectid_to_str(await self.get_test_detail(test_id))
-
-    async def soft_delete_test(self, test_id: ObjectId):
-        test = await self.test_repo.get_test_by_id(test_id)
+    async def update_test_structure(self, test_code: str, payload: TestUpdatePayloadSchema, admin_id: ObjectId) -> Dict:
+        test = await self.test_repo.get_test_by_code(test_code)
         if not test:
-            raise ValueError("Test not found")
-        await self.test_repo.collection.update_one(
-            {"_id": test_id},
-            {"$set": {"is_deleted": True, "updated_at": datetime.utcnow()}}
-        )
-        await self.question_repo.collection.update_many(
-            {"test_id": test_id},
-            {"$set": {"is_deleted": True, "deleted_at": datetime.utcnow()}}
-        )
-        return True
+            raise TestNotFoundError(f"Test {test_code} not found")
+        
+        test_id = test["_id"]
+        update_data = payload.model_dump(exclude={"questions"}, exclude_unset=True)
+        
+        if payload.questions is not None:
+             update_data["num_questions"] = len(payload.questions)
 
+        updated_test = await self.test_repo.update_test_info(test_id, update_data, admin_id)
 
-def get_admin_test_service(
-    test_repo: TestRepository = Depends(get_test_repository),
-    question_repo: TestQuestionRepository = Depends(get_question_repository)
-):
-    return AdminTestService(test_repo, question_repo)
+        if payload.questions is not None:
+            affected_emails = await self.result_repo.get_users_with_in_progress_test(test_id)
+            
+            # Xóa draft và câu hỏi cũ
+            await self.result_repo.delete_in_progress_results_by_test_id(test_id)
+            await self.test_repo.delete_questions_by_test_id(test_id)
+            
+            # Insert câu hỏi mới format chuẩn
+            await self._insert_formatted_questions(test_id, payload.questions)
+
+            # Gửi mail
+            test_title = updated_test.get("title", test_code)
+            for email in affected_emails:
+                await self.email_service.send_test_update_notification(email, test_title)
+
+        return updated_test
+
+    async def _insert_formatted_questions(self, test_id: ObjectId, questions_payload: list):
+        """Helper để format câu hỏi đúng chuẩn database cũ"""
+        new_questions = []
+        for q in questions_payload:
+            formatted_options = []
+            for opt in q.options:
+                formatted_options.append({
+                    "_id": ObjectId(), # ID lên đầu
+                    "option_text": opt.option_text,
+                    "score_value": opt.score_value
+                })
+
+            q_dict = {
+                "test_id": test_id,
+                "question_text": q.question_text,
+                "question_order": q.question_order,
+                "options": formatted_options,
+                "is_deleted": False
+            }
+            new_questions.append(q_dict)
+            
+        if new_questions:
+            await self.test_repo.insert_questions(new_questions)
+
+    async def delete_test(self, test_code: str, user_id: ObjectId) -> None:
+        success = await self.test_repo.soft_delete_test(test_code, user_id)
+        if not success:
+            raise TestNotFoundError(f"Test {test_code} not found")
+        
+# DI Helper
+from app.repositories.test_repository import TestRepository
+from app.core.database import get_db
+
+def get_admin_test_service(db=Depends(get_db)) -> AdminTestService:
+    test_repo = TestRepository(db)
+    result_repo = UserTestResultRepository(db)
+    email_service = EmailService()
+    return AdminTestService(test_repo, result_repo, email_service)

@@ -9,8 +9,10 @@ class Test(BaseModel):
     test_code: str = Field(..., max_length=50)
     title: str = Field(..., max_length=100)
     description: str = Field(..., max_length=500)
+    num_questions: int = Field(default=0)
     image_url: Optional[str] = None
     severe_threshold: int
+    self_care_guidance: str = Field(default="", max_length=1000)
     expert_recommendation: str = Field(..., max_length=1000)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

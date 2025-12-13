@@ -104,3 +104,24 @@ class UserTestResultDetailSchema(BaseModel):
         from_attributes = True
         validate_by_name = True
         json_encoders = {ObjectId: str}
+
+class SavedAnswerSchema(BaseModel):
+    question_id: PyObjectId
+    chosen_option_id: PyObjectId = Field(alias="option_id")
+    
+    class Config:
+        populate_by_name = True
+        json_encoders = {ObjectId: str}
+
+class TestProgressDetailSchema(BaseModel):
+    id: PyObjectId = Field(alias="_id")
+    test_id: PyObjectId
+    test_code: str
+    status: str
+    started_at: datetime
+    answers: List[SavedAnswerSchema] 
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+        json_encoders = {ObjectId: str}

@@ -344,3 +344,19 @@ class EmailService:
         </div>
         """
         await self.send_email(user_email, subject, html_body)
+
+    async def send_test_update_notification(self, user_email: str, test_title: str):
+        subject = f"Update regarding your incomplete test: {test_title}"
+        html_body = f"""
+        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
+            <h2 style='color: #e67e22;'>Test Content Updated</h2>
+            <p>Hello,</p>
+            <p>We are writing to inform you that the test <strong>"{test_title}"</strong> which you were in the process of taking has been updated by our administrators.</p>
+            <div style='background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;'>
+                <p>Because the structure of the test has changed, your previous <strong>in-progress</strong> draft is no longer valid and has been reset.</p>
+            </div>
+            <p>Please visit the application to start the test again with the updated questions.</p>
+            <p>Best regards,<br><strong>SoulSpace Team</strong></p>
+        </div>
+        """
+        await self.send_email(user_email, subject, html_body)
