@@ -1,5 +1,5 @@
 from functools import lru_cache
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status, Request, WebSocket
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from app.core.config import settings
@@ -239,3 +239,39 @@ def get_expert_dashboard_service(
 ) -> ExpertDashboardService:
     return ExpertDashboardService(appointment_repo, expert_repo, wallet_repo, user_repo)
 
+async def get_current_user_ws(
+    websocket: WebSocket,
+    token: Optional[str] = None
+) -> Optional[dict]:
+    """Get current user for WebSocket connections"""
+    try:
+        if not token:
+            # Try from query params
+            query_params = dict(websocket.query_params)
+            token = query_params.get("token")
+            if not token:
+                # Try from headers
+                headers = dict(websocket.headers)
+                auth_header = headers.get("authorization", "")
+                if auth_header.startswith("Bearer "):
+                    token = auth_header[7:]
+
+        if not token:
+            return None  # Không raise để WS reject gracefully
+
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
+        user_id: str = payload.get("sub")
+        role: str = payload.get("role")
+
+        if user_id is None or role is None:
+            return None
+
+        user_data = {"_id": ObjectId(user_id), "role": role}
+        if role == "expert" and "profile_id" in payload:
+            user_data["profile_id"] = payload["profile_id"]
+
+        return user_data
+    except JWTError:
+        return None
+    except Exception:
+        return None

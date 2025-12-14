@@ -6,8 +6,7 @@ from app.utils.pyobjectid import PyObjectId
 class Chat(BaseModel):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     user_id: PyObjectId
-    expert_id: PyObjectId
-    appointment_id: Optional[PyObjectId] = None
+    expert_profile_id: PyObjectId
     last_message: str = ""
     last_message_at: Optional[datetime] = None
     user_unread: int = 0

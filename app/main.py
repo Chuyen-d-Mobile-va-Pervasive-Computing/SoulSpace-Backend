@@ -1,3 +1,4 @@
+# app/main.py
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +8,7 @@ from app.core.database import init_db, close_db
 # Common routers
 from app.api.user_admin_auth_router import router as user_admin_auth_router
 from app.api.expert.expert_auth_router import router as expert_auth_router
+from app.api.common.chat_router import router as chat_router
 
 # User routers
 from app.api.user.journal_router import router as journal_router
@@ -30,7 +32,6 @@ from app.api.admin.test_router import router as admin_test_router
 from app.api.common.cloudinary_router import router as cloudinary_router
 from app.api.common.ai_router import router as ai_router
 
-
 # Expert routers
 from app.api.expert.expert_router import router as expert_router
 from app.api.expert.dashboard_router import router as expert_dashboard_router
@@ -51,9 +52,9 @@ app.add_middleware(
 API_PREFIX = "/api/v1"
 
 # ==== ROUTER REGISTRATION ====
-# Common routes
 app.include_router(user_admin_auth_router, prefix=API_PREFIX)
 app.include_router(expert_auth_router, prefix=API_PREFIX)
+app.include_router(chat_router, prefix=API_PREFIX)
 
 # User routes
 app.include_router(journal_router, prefix=API_PREFIX)
@@ -75,7 +76,7 @@ app.include_router(admin_router, prefix=API_PREFIX)
 app.include_router(expert_management_router, prefix=API_PREFIX)
 app.include_router(admin_test_router, prefix=API_PREFIX)
 app.include_router(cloudinary_router, prefix=API_PREFIX)
-app.include_router(ai_router, prefix=API_PREFIX)  # AI Sentiment Analysis
+app.include_router(ai_router, prefix=API_PREFIX)
 
 # Expert routes
 app.include_router(expert_router, prefix=API_PREFIX)
@@ -86,13 +87,13 @@ app.include_router(expert_dashboard_router, prefix=API_PREFIX)
 # ==== APP EVENTS ====
 @app.on_event("startup")
 async def startup_event():
-    await init_db()
+    db_client = await init_db() 
+    app.state.db = db_client[settings.DATABASE_NAME] 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     await close_db()
 
-# ==== MAIN ENTRYPOINT ====
 if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",

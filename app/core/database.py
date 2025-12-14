@@ -14,6 +14,7 @@ async def get_db():
 async def init_db():
     global client
     client = AsyncIOMotorClient(settings.MONGO_URI, tls=True, tlsCAFile=certifi.where())
+    return client
 
 async def close_db():
     global client
