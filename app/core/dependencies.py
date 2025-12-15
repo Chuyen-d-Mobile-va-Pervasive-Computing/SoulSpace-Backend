@@ -224,9 +224,10 @@ def get_user_appointment_service(
     appointment_repo=Depends(get_appointment_repository),
     expert_repo=Depends(get_expert_repository),
     payment_repo=Depends(get_payment_repository),
+    user_repo=Depends(get_user_repository),
     email_service=Depends(get_email_service)
 ) -> UserAppointmentService:
-    return UserAppointmentService(appointment_repo, expert_repo, payment_repo, email_service)
+    return UserAppointmentService(appointment_repo, expert_repo, payment_repo, user_repo, email_service)
 
 def get_expert_wallet_repository(db: AsyncIOMotorDatabase = Depends(get_database)):
     return ExpertWalletRepository(db)

@@ -3,6 +3,7 @@ from fastapi import HTTPException, status
 from app.repositories.appointment_repository import AppointmentRepository
 from app.repositories.expert_repository import ExpertRepository
 from app.repositories.payment_repository import PaymentRepository
+from app.repositories.user_repository import UserRepository
 from app.services.common.email_service import EmailService
 from app.schemas.user.appointment_schema import (
     AppointmentCreateResponse,
@@ -12,10 +13,11 @@ from app.schemas.user.appointment_schema import (
 )
 
 class UserAppointmentService:
-    def __init__(self, appointment_repo: AppointmentRepository, expert_repo: ExpertRepository, payment_repo: PaymentRepository, email_service: EmailService):
+    def __init__(self, appointment_repo: AppointmentRepository, expert_repo: ExpertRepository, payment_repo: PaymentRepository, user_repo: UserRepository, email_service: EmailService):
         self.appointment_repo = appointment_repo
         self.expert_repo = expert_repo
         self.payment_repo = payment_repo
+        self.user_repo = user_repo
         self.email_service = email_service
 
     async def create_appointment(self, user_id: str, expert_profile_id: str, schedule_id: str):
@@ -58,21 +60,44 @@ class UserAppointmentService:
         appointment = await self.appointment_repo.get_by_id_for_user(appointment_id, user_id)
         if not appointment:
             raise HTTPException(status_code=404, detail="Appointment not found")
+
         expert = await self.expert_repo.get_by_id(str(appointment.expert_profile_id))
         if not expert:
             raise HTTPException(status_code=404, detail="Expert not found")
+
+        # Lấy user phone
+        user = await self.user_repo.get_by_id(user_id)
+        user_phone = user.phone if user else None
+
+        # Lấy payment mới nhất
+        payment = await self.payment_repo.get_latest_by_appointment(appointment_id)
+
         return AppointmentDetailResponse(
             _id=str(appointment.id),
             date=appointment.appointment_date,
             start_time=appointment.start_time,
             end_time=appointment.end_time,
             status=appointment.status,
-            total_amount=appointment.total_amount,
-            clinic_address=expert.clinic_address,
+
             expert={
                 "full_name": expert.full_name,
                 "avatar_url": expert.avatar_url,
-                "clinic_name": expert.clinic_name
+                "clinic_name": expert.clinic_name,
+                "phone": expert.phone
+            },
+
+            user_phone=user_phone,
+
+            pricing={
+                "price": appointment.price,
+                "vat": appointment.vat,
+                "after_hours_fee": getattr(appointment, "after_hours_fee", 0),
+                "discount": getattr(appointment, "discount", 0),
+                "total_amount": appointment.total_amount
+            },
+
+            payment={
+                "method": payment.method if payment else None
             }
         )
 
