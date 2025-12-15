@@ -1,5 +1,6 @@
+# app/schemas/user/anon_comment_schema.py
 from pydantic import BaseModel, Field
-from bson import ObjectId
+from typing import Optional, List
 from datetime import datetime
 from app.utils.pyobjectid import PyObjectId
 
@@ -11,12 +12,17 @@ class AnonCommentCreate(BaseModel):
 class AnonCommentResponse(BaseModel):
     id: PyObjectId = Field(alias="_id")
     post_id: PyObjectId
+
+    user_id: Optional[str] = None   
+    username: str = "Anonymous"          
+    is_owner: bool = False                 
+
     content: str
     moderation_status: str
     is_preset: bool
     created_at: datetime
-    detected_keywords: list[str] = []
+    detected_keywords: List[str] = []
 
     class Config:
-        json_encoders = {ObjectId: str, datetime: lambda v: v.isoformat()}
-        validate_by_name = True
+        json_encoders = {PyObjectId: str, datetime: lambda v: v.isoformat()}
+        populate_by_name = True

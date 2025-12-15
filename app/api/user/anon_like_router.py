@@ -3,7 +3,7 @@ from app.services.user.anon_like_service import AnonLikeService
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 
-router = APIRouter(prefix="/anon-likes", tags=["👤 User - Anonymous Likes (Thích bài viết)"])
+router = APIRouter(prefix="/anon-likes", tags=["User - Anonymous Likes (Thích bài viết)"])
 
 @router.post("/{post_id}")
 async def like_post(post_id: str, db=Depends(get_db), user=Depends(get_current_user)):

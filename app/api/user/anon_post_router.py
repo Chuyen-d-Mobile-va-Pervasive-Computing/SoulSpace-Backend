@@ -6,7 +6,7 @@ from app.services.common.cloudinary_service import CloudinaryService
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_current_user_optional
 
-router = APIRouter(prefix="/anon-posts", tags=["👤 User - Posts (Bài viết cộng đồng)"])
+router = APIRouter(prefix="/anon-posts", tags=["User - Posts (Bài viết cộng đồng)"])
 
 
 @router.post("/", response_model=AnonPostResponse)

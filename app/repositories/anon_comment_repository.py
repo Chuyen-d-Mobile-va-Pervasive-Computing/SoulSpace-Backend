@@ -1,10 +1,12 @@
 from app.models.anon_comment_model import AnonComment
 from bson import ObjectId
 from fastapi import HTTPException
+from typing import List, Optional
 
 class AnonCommentRepository:
     def __init__(self, db):
         self.collection = db["anon_comments"]
+        self.users_collection = db["users"]
         self.collection.create_index([("post_id", 1), ("created_at", -1)])
 
     async def create(self, comment: dict) -> dict:
@@ -18,10 +20,42 @@ class AnonCommentRepository:
             raise HTTPException(status_code=404, detail="Comment not found")
         return comment
 
-    async def list_by_post(self, post_id: str, limit: int = 50) -> list:
-        cursor = self.collection.find({"post_id": ObjectId(post_id), "moderation_status": "Approved"}) \
-            .sort("created_at", -1).limit(limit)
-        return await cursor.to_list(length=limit)
+    async def _enrich_comment(self, comment: dict, current_user_id: Optional[str] = None) -> dict:
+        comment_user_id = comment.get("user_id")
+
+        if comment_user_id:
+            user = await self.users_collection.find_one(
+                {"_id": ObjectId(comment_user_id)},
+                {"username": 1}
+            )
+            comment["username"] = user.get("username", "Anonymous") if user else "Anonymous"
+            comment["user_id"] = str(comment_user_id) 
+        else:
+            comment["username"] = "Anonymous"
+            comment["user_id"] = None
+
+        comment["is_owner"] = (
+            current_user_id is not None and
+            str(comment_user_id) == current_user_id
+        ) if comment_user_id else False
+
+        return comment
+
+    async def list_by_post(self, post_id: str, current_user_id: Optional[str] = None, limit: int = 50) -> List[dict]:
+        cursor = self.collection.find({
+            "post_id": ObjectId(post_id),
+            "moderation_status": "Approved"
+        }).sort("created_at", -1).limit(limit)
+
+        comments = await cursor.to_list(length=limit)
+
+        # Enrich each comment
+        enriched_comments = []
+        for comment in comments:
+            enriched = await self._enrich_comment(comment, current_user_id)
+            enriched_comments.append(enriched)
+
+        return enriched_comments
 
     async def update_status(self, comment_id: str, status: str) -> dict:
         result = await self.collection.update_one(

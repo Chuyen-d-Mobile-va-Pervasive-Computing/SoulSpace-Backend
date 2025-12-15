@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends
 from app.schemas.user.anon_comment_schema import AnonCommentCreate, AnonCommentResponse
 from app.services.user.anon_comment_service import AnonCommentService
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, get_current_user_optional
+from typing import Optional, List
 
-router = APIRouter(prefix="/anon-comments", tags=["👤 User - Anonymous Comments (Bình luận ẩn danh)"])
+router = APIRouter(prefix="/anon-comments", tags=["User - Anonymous Comments (Bình luận ẩn danh)"])
 
 @router.post("/", response_model=AnonCommentResponse)
 async def create_comment(payload: AnonCommentCreate, db=Depends(get_db), user=Depends(get_current_user)):
@@ -17,10 +18,15 @@ async def create_comment(payload: AnonCommentCreate, db=Depends(get_db), user=De
     )
     return comment
 
-@router.get("/{post_id}", response_model=list[AnonCommentResponse])
-async def list_comments(post_id: str, db=Depends(get_db)):
+@router.get("/{post_id}", response_model=List[AnonCommentResponse])
+async def list_comments(
+    post_id: str,
+    db=Depends(get_db),
+    user: Optional[dict] = Depends(get_current_user_optional)
+):
     service = AnonCommentService(db)
-    return await service.comment_repo.list_by_post(post_id)
+    current_user_id = str(user["_id"]) if user else None
+    return await service.comment_repo.list_by_post(post_id, current_user_id)
 
 @router.delete("/{comment_id}")
 async def delete_comment(comment_id: str, db=Depends(get_db), user=Depends(get_current_user)):

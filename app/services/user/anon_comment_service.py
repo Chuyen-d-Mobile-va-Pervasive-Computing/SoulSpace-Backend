@@ -39,8 +39,6 @@ class AnonCommentService:
                         flagged_reason = f"Soft block keyword detected: {term}"
 
 
-        # --- build comment object ---
-        # Ensure user_id is ObjectId for consistency
         user_oid = ObjectId(user_id) if isinstance(user_id, str) else user_id
         comment_data = AnonComment(
             post_id=ObjectId(post_id),
@@ -50,22 +48,22 @@ class AnonCommentService:
             moderation_status=action,
             is_preset=is_preset
         ).dict(by_alias=True)
-        
-        # Remove _id to let MongoDB generate proper ObjectId
+
         if "_id" in comment_data:
             del comment_data["_id"]
-        
-        # Ensure ObjectId types for database
+
         comment_data["user_id"] = user_oid
         comment_data["post_id"] = ObjectId(post_id)
 
         new_comment = await self.comment_repo.create(comment_data)
 
-        # --- update comment_count của post ---
+        enriched_comment = await self.comment_repo._enrich_comment(new_comment.copy(), user_id)
+
+        enriched_comment["user_id"] = str(enriched_comment["user_id"]) if enriched_comment["user_id"] else None
+
         if action == "Approved":
             await self.post_repo.increment_comment_count(post_id)
 
-        # --- log moderation ---
         await self.log_repo.create_log(
             content_id=new_comment["_id"],
             content_type="comment",
@@ -75,7 +73,7 @@ class AnonCommentService:
             action=action
         )
 
-        return new_comment
+        return enriched_comment
     
     async def increment_comment_count(self, post_id: str):
         await self.collection.update_one(
