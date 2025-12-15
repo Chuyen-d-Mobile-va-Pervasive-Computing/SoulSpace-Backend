@@ -26,6 +26,8 @@ from app.repositories.payment_repository import PaymentRepository
 from app.services.user.payment_service import UserPaymentService
 from app.repositories.expert_wallet_repository import ExpertWalletRepository
 from app.services.expert.dashboard_service import ExpertDashboardService
+from app.services.admin.post_service import AdminPostService
+from app.services.admin.comment_service import AdminCommentService
 
 oauth2_scheme = HTTPBearer()
 oauth2_scheme_optional = HTTPBearer(auto_error=False)
@@ -276,3 +278,10 @@ async def get_current_user_ws(
         return None
     except Exception:
         return None
+    
+    
+def get_admin_post_service(db: AsyncIOMotorDatabase = Depends(get_database)) -> AdminPostService:
+    return AdminPostService(db)
+
+def get_admin_comment_service(db: AsyncIOMotorDatabase = Depends(get_database)) -> AdminCommentService:
+    return AdminCommentService(db)

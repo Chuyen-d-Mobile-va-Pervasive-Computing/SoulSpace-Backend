@@ -360,3 +360,38 @@ class EmailService:
         </div>
         """
         await self.send_email(user_email, subject, html_body)
+        
+    async def send_post_deleted_email(self, user_email: str, username: str, reason: str):
+            subject = "Your post has been removed from SoulSpace"
+            html_body = f"""
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
+                <h2 style='color: #e74c3c;'>Post Removed</h2>
+                <p>Dear <strong>{username}</strong>,</p>
+                <p>We regret to inform you that your post has been removed by our moderation team.</p>
+                <div style='background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;'>
+                    <p><strong>Reason:</strong> {reason}</p>
+                </div>
+                <p>We encourage all users to follow our community guidelines to ensure a safe and supportive environment.</p>
+                <p>If you believe this was a mistake, please contact support.</p>
+                <p>Best regards,<br><strong>SoulSpace Team</strong></p>
+            </div>
+            """
+            await self.send_email(user_email, subject, html_body)
+
+    async def send_comment_deleted_email(self, user_email: str, username: str, reason: str, comment_content: str):
+        truncated_content = comment_content[:300] + ("..." if len(comment_content) > 300 else "")
+        subject = "Your comment has been removed from SoulSpace"
+        html_body = f"""
+        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
+            <h2 style='color: #e74c3c;'>Comment Removed</h2>
+            <p>Dear <strong>{username}</strong>,</p>
+            <p>Your comment has been removed by our moderation team.</p>
+            <div style='background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;'>
+                <p><strong>Reason:</strong> {reason}</p>
+                <p><em>"{truncated_content}"</em></p>
+            </div>
+            <p>Please review our community guidelines to avoid future removals.</p>
+            <p>Best regards,<br><strong>SoulSpace Team</strong></p>
+        </div>
+        """
+        await self.send_email(user_email, subject, html_body)

@@ -5,7 +5,11 @@ These endpoints are for admin-only operations.
 from fastapi import APIRouter, Depends, HTTPException, Query, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr, Field, validator
-from app.core.dependencies import get_current_user
+from app.core.dependencies import (
+    get_current_user,
+    get_admin_post_service,       
+    get_admin_comment_service   
+)
 from app.core.permissions import Role, require_role
 from app.core.database import get_db
 from app.core.security import hash_password
@@ -17,6 +21,10 @@ from app.services.common.notification_service import NotificationService
 from app.schemas.user.anon_post_schema import AnonPostResponse
 from app.schemas.user.report_schema import ReportResponse
 from app.schemas.expert.expert_article_schema import ExpertArticleResponse
+from app.services.admin.post_service import AdminPostService
+from app.services.admin.comment_service import AdminCommentService
+from app.schemas.admin.post_schema import AdminPostDeleteRequest
+from app.schemas.admin.comment_schema import AdminCommentDeleteRequest
 from bson import ObjectId
 from datetime import datetime, timedelta, date
 from typing import Optional, Literal
@@ -50,17 +58,11 @@ class CreateUserByAdminRequest(BaseModel):
 # Keep old schema for backward compatibility
 CreateAdminRequest = CreateUserByAdminRequest
 
-
-# Router với Security dependency - Swagger sẽ hiển thị 🔒
 router = APIRouter(
     prefix="/admin", 
-    tags=["🔧 Admin - Management (Quản trị)"],
-    dependencies=[Security(security)]  # Thêm lock icon cho tất cả endpoints
+    tags=["Admin - Management (Quản trị)"],
+    dependencies=[Security(security)]
 )
-
-@router.get("/health")
-async def admin_health_check():
-    return {"status": "healthy", "role": "admin"}
 
 
 # --- Admin User Management ---
@@ -384,27 +386,19 @@ async def batch_update_post_status(
 
 @router.delete("/posts/{post_id}")
 @require_role(Role.ADMIN)
-async def delete_post(post_id: str, reason: str, db=Depends(get_db), user=Depends(get_current_user)):
-    """Xóa bài viết và gửi thông báo đến user."""
-    service = AnonPostService(db)
-    notif_service = NotificationService(db)
-    
-    # Get post to find owner
-    post = await service.post_repo.get(post_id)
-    if not post:
-        raise HTTPException(status_code=404, detail="Post not found")
-    
-    # Delete post (bypass owner check for admin)
-    await service.post_repo.delete(post_id)
-    
-    # Notify user
-    await notif_service.create_notification(
-        user_id=str(post["user_id"]),
-        title="Bài viết bị xóa",
-        message=f"Bài viết của bạn đã bị xóa bởi Admin. Lý do: {reason}",
-        type="alert"
+async def delete_post_admin(
+    post_id: str,
+    reason: str = Query(..., description="Reason for deletion"),  # ← Dùng Query thay vì body
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+    admin_post_service: AdminPostService = Depends(get_admin_post_service)
+):
+    """Delete a post as admin and notify the owner."""
+    return await admin_post_service.delete_post_admin(
+        post_id=post_id,
+        reason=reason,
+        admin_id=str(current_user["_id"])
     )
-    return {"message": "Post deleted and user notified"}
 
 # --- Comment Management ---
 @router.get("/comments")
@@ -445,33 +439,19 @@ async def list_all_comments(
 
 @router.delete("/comments/{comment_id}")
 @require_role(Role.ADMIN)
-async def delete_comment(comment_id: str, reason: str, db=Depends(get_db), user=Depends(get_current_user)):
-    """Xóa comment và gửi thông báo đến user."""
-    service = AnonCommentService(db)
-    notif_service = NotificationService(db)
-    
-    # Get comment
-    comment = await service.comment_repo.get_by_id(comment_id)
-    if not comment:
-        raise HTTPException(status_code=404, detail="Comment not found")
-    
-    # Delete comment (bypass owner check for admin)
-    await service.comment_repo.delete(comment_id)
-    
-    # Decrement comment count on post
-    await db["anon_posts"].update_one(
-        {"_id": comment.get("post_id")},
-        {"$inc": {"comment_count": -1}}
+async def delete_comment_admin(
+    comment_id: str,
+    reason: str = Query(..., description="Reason for deletion"),  # ← Dùng Query
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+    admin_comment_service: AdminCommentService = Depends(get_admin_comment_service)
+):
+    """Delete a comment as admin and notify the owner."""
+    return await admin_comment_service.delete_comment_admin(
+        comment_id=comment_id,
+        reason=reason,
+        admin_id=str(current_user["_id"])
     )
-    
-    # Notify user
-    await notif_service.create_notification(
-        user_id=str(comment["user_id"]),
-        title="Bình luận bị xóa",
-        message=f"Bình luận của bạn đã bị xóa bởi Admin. Lý do: {reason}",
-        type="alert"
-    )
-    return {"message": "Comment deleted and user notified"}
 
 # --- Report Management ---
 @router.get("/reports", response_model=list[ReportResponse])
