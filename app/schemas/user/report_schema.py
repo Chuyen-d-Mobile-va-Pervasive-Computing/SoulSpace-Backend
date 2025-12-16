@@ -22,3 +22,18 @@ class ReportResponse(BaseModel):
         json_encoders = {ObjectId: str}
         populate_by_name = True
         extra = "allow"
+
+class AdminReportResponse(BaseModel):
+    id: PyObjectId = Field(..., alias="_id")
+    reporter_username: str
+    target_type: str
+    target_id: str
+    target_content: str
+    target_author_username: str
+    reason: str
+    status: str
+    created_at: Optional[datetime] = None
+
+    class Config:
+        populate_by_name = True
+        json_encoders = {PyObjectId: str}

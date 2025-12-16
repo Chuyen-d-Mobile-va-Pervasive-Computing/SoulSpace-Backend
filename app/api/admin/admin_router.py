@@ -19,7 +19,7 @@ from app.services.user.report_service import ReportService
 from app.services.expert.expert_article_service import ExpertArticleService
 from app.services.common.notification_service import NotificationService
 from app.schemas.user.anon_post_schema import AnonPostResponse
-from app.schemas.user.report_schema import ReportResponse
+from app.schemas.user.report_schema import ReportResponse, AdminReportResponse
 from app.schemas.expert.expert_article_schema import ExpertArticleResponse
 from app.services.admin.post_service import AdminPostService
 from app.services.admin.comment_service import AdminCommentService
@@ -454,14 +454,14 @@ async def delete_comment_admin(
     )
 
 # --- Report Management ---
-@router.get("/reports", response_model=list[ReportResponse])
+@router.get("/reports", response_model=list[AdminReportResponse])
 @require_role(Role.ADMIN)
 async def list_reports(
-    status: str = Query(None, description="Filter: pending, resolved, dismissed"),
+    status: str = Query(None, description="Filter: pending, resolved, rejected"),
     db=Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    """Lấy danh sách reports."""
+    """Lấy danh sách reports kèm nội dung bị báo cáo để Admin duyệt."""
     service = ReportService(db)
     return await service.list_reports(status=status)
 
