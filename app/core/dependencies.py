@@ -28,6 +28,7 @@ from app.repositories.expert_wallet_repository import ExpertWalletRepository
 from app.services.expert.dashboard_service import ExpertDashboardService
 from app.services.admin.post_service import AdminPostService
 from app.services.admin.comment_service import AdminCommentService
+from app.services.admin.test_service import AdminTestService
 
 oauth2_scheme = HTTPBearer()
 oauth2_scheme_optional = HTTPBearer(auto_error=False)
@@ -285,3 +286,6 @@ def get_admin_post_service(db: AsyncIOMotorDatabase = Depends(get_database)) -> 
 
 def get_admin_comment_service(db: AsyncIOMotorDatabase = Depends(get_database)) -> AdminCommentService:
     return AdminCommentService(db)
+
+def get_admin_test_service(db: AsyncIOMotorDatabase = Depends(get_database)) -> AdminTestService:
+    return AdminTestService(TestRepository(db))

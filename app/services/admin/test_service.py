@@ -1,11 +1,12 @@
 from bson import ObjectId
-from typing import Dict
+from typing import Dict, List
 from datetime import datetime
 from app.repositories.test_repository import TestRepository
 from app.repositories.user_test_result_repository import UserTestResultRepository
 from app.services.common.email_service import EmailService
 from app.schemas.admin.test_schema import TestUpdatePayloadSchema, TestCreateSchema
 from fastapi import Depends
+from app.schemas.admin.test_schema import AdminTestListSchema, AdminTestQuestionSchema
 
 class TestNotFoundError(Exception): pass
 class TestAlreadyExistsError(Exception): pass
@@ -15,6 +16,40 @@ class AdminTestService:
         self.test_repo = test_repo
         self.result_repo = result_repo
         self.email_service = email_service
+        
+    async def get_all_active_tests(self) -> List[AdminTestListSchema]:
+        """Lấy tất cả test chưa bị soft delete"""
+        raw_tests = await self.test_repo.get_all_tests()
+        tests = []
+        for test in raw_tests:
+            test["_id"] = str(test["_id"])
+            tests.append(AdminTestListSchema(**test))
+        return tests
+
+    async def get_questions_by_test_code(self, test_code: str) -> List[AdminTestQuestionSchema]:
+        """Lấy câu hỏi của test theo test_code, chỉ lấy chưa soft delete"""
+        test = await self.test_repo.get_test_by_code(test_code)
+        if not test:
+            raise ValueError(f"Test with code {test_code} not found")
+        if test.get("is_deleted", False):
+            raise ValueError(f"Test with code {test_code} is no longer available")
+
+        raw_questions = await self.test_repo.get_questions_by_test_id(test["_id"])
+        questions = []
+        for q in raw_questions:
+            q["_id"] = str(q["_id"])
+            q["test_id"] = str(q["test_id"])
+            # Chuẩn hóa options
+            formatted_options = []
+            for opt in q.get("options", []):
+                formatted_options.append({
+                    "_id": str(opt.get("_id")),
+                    "option_text": opt.get("option_text", ""),
+                    "score": opt.get("score_value", 0)
+                })
+            q["options"] = formatted_options
+            questions.append(AdminTestQuestionSchema(**q))
+        return questions
 
     async def create_test(self, payload: TestCreateSchema, admin_id: ObjectId) -> Dict:
         # 1. Check duplicate
