@@ -9,6 +9,7 @@ from typing import List, Optional
 import uuid
 import os
 from time import time
+from datetime import datetime, date
 
 router = APIRouter(prefix="/journal", tags=["User - Journal (Nhật ký)"])
 
@@ -27,98 +28,102 @@ def serialize_journal(journal) -> JournalResponse:
         tags=journal.tags or [],
         is_toxic=journal.is_toxic,
         toxic_labels=journal.toxic_labels,
-        toxic_confidence=journal.toxic_confidence
+        toxic_confidence=journal.toxic_confidence,
+        toxic_predictions=journal.toxic_predictions
     )
 
 @router.post("/", response_model=JournalResponse)
 async def create_journal(
     request: Request,
-    audio: UploadFile = File(None, description="Optional audio recording (.mp3 or .m4a)"),  # FE gửi field 'audio'
+    audio: UploadFile = File(None, description="Optional audio recording (.mp3 or .m4a)"),
     db=Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Create a new journal entry compatible với FE hiện tại.
-
-    FE gửi:
-      - text_content: string (bắt buộc)
-      - tags: JSON string của array [{tag_id, tag_name}]
-      - audio: file .m4a hoặc .mp3 (tuỳ chọn)
-      - (emotion_label hiện chưa gửi) => default 'Neutral' nếu thiếu / invalid
-    """
     form_data = await request.form()
 
-    # Parse tags: FE gửi JSON string của list object => map sang list tên
+    # Parse tags từ JSON string (FE gửi tags dưới dạng JSON)
     raw_tags = form_data.get("tags")
-    parsed_tags: Optional[List[str]] = None
+    parsed_tags: List[str] = []
     if raw_tags:
         try:
             import json
             tags_obj = json.loads(raw_tags)
             if isinstance(tags_obj, list):
-                parsed_tags = []
-                for t in tags_obj:
-                    if isinstance(t, dict):
-                        name = t.get("tag_name") or t.get("name")
-                        if name:
-                            parsed_tags.append(str(name))
-            # Deduplicate & clean
-            if parsed_tags:
-                cleaned = []
-                for tag in parsed_tags:
-                    tag = tag.strip()
-                    if tag and tag not in cleaned:
-                        cleaned.append(tag)
-                parsed_tags = cleaned or None
+                parsed_tags = [t.get("tag_name") or t.get("name") for t in tags_obj if isinstance(t, dict)]
+                parsed_tags = [tag.strip() for tag in parsed_tags if tag.strip()]
         except Exception:
-            # Nếu parse lỗi => bỏ qua tags
-            parsed_tags = None
+            pass
 
     emotion_label = form_data.get("emotion_label")
-    # FE không gửi => đặt mặc định Neutral
     if not emotion_label or emotion_label not in ICON_SENTIMENT_MAP:
         emotion_label = "Neutral"
 
+    # Tạo JournalCreate để validate (không cần journal_date ở đây vì date không validate bằng Pydantic ở form)
     data = JournalCreate(
         emotion_label=emotion_label,
         text_content=form_data.get("text_content"),
-        voice_note_path=None if not audio else "temp_path",
+        voice_note_path=None,
         tags=parsed_tags
     )
 
-    file_path: Optional[str] = None
+    # Parse journal_date từ form (NEW)
+    raw_journal_date = form_data.get("journal_date")
+    journal_date: Optional[date] = None
+    if raw_journal_date:
+        try:
+            journal_date = date.fromisoformat(raw_journal_date)
+            if journal_date > datetime.utcnow().date():
+                raise HTTPException(status_code=400, detail="Journal date cannot be in the future")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid journal_date format. Use YYYY-MM-DD")
+
+    file_path = None
+    voice_text = None  # Sẽ set nếu có audio
     try:
-        # Validate text_content
         if not data.text_content or not data.text_content.strip():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Text content is required")
+            raise HTTPException(status_code=400, detail="Text content is required")
 
-        # Validate tags length
-        if data.tags and any(len(tag) > 50 for tag in data.tags):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Each tag must be <= 50 characters")
-
-        # Handle audio file (.mp3 / .m4a)
+        # Xử lý audio + STT
         if audio:
             file_extension = os.path.splitext(audio.filename)[1].lower()
             if file_extension not in (".mp3", ".m4a"):
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only MP3 or M4A files are supported")
+                raise HTTPException(status_code=400, detail="Only MP3 or M4A files are supported")
+            
             file_name = f"{uuid.uuid4()}{file_extension}"
             temp_dir = os.path.join(os.getcwd(), "temp")
             os.makedirs(temp_dir, exist_ok=True)
             file_path = os.path.join(temp_dir, file_name)
+            
             with open(file_path, "wb") as f:
                 f.write(await audio.read())
-            data.voice_note_path = file_path
+            
+            # Transcribe audio
+            service = JournalService(JournalRepository(db))
+            voice_text = await service.transcribe_audio(open(file_path, "rb").read())
+            
+            # Update voice_note_path (giữ tạm để pass xuống service)
+            data.voice_note_path = file_path  # xóa ở finally
 
-        # Create journal
+        # Gọi service với primitive values + journal_date (NEW)
         service = JournalService(JournalRepository(db))
-        journal = await service.create_journal(str(current_user["_id"]), data)
+        journal = await service.create_journal(
+            user_id=str(current_user["_id"]),
+            emotion_label=data.emotion_label,
+            text_content=data.text_content,
+            voice_note_path=data.voice_note_path,
+            voice_text=voice_text,
+            tags=data.tags,
+            journal_date=journal_date
+        )
+
         return serialize_journal(journal)
+
     except HTTPException:
-        # Re-raise có kiểm soát
         raise
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to create journal: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create journal: {str(e)}")
     finally:
-        if audio and file_path and os.path.exists(file_path):
+        if file_path and os.path.exists(file_path):
             try:
                 os.remove(file_path)
             except Exception:

@@ -18,6 +18,7 @@ class Journal(BaseModel):
     is_toxic: bool = False
     toxic_labels: List[str] = []
     toxic_confidence: float = 0.0
+    toxic_predictions: dict = {}
 
     class Config:
         populate_by_name = True

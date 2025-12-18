@@ -1,5 +1,7 @@
+# app/services/user/journal_service.py
 import asyncio
 from bson import ObjectId
+from typing import Optional, List
 from app.repositories.journal_repository import JournalRepository
 from app.schemas.user.journal_schema import JournalCreate
 from app.models.journal_model import Journal
@@ -8,7 +10,7 @@ from app.core.config import settings
 from app.services.common.toxic_detection_service import get_toxic_detection_service
 import assemblyai as aai
 from transformers import pipeline
-from datetime import datetime
+from datetime import datetime, date, time
 
 # Set AssemblyAI API key
 aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
@@ -45,86 +47,102 @@ class JournalService:
         try:
             if not audio_content:
                 raise ValueError("Audio content is empty")
-
             def _transcribe():
                 transcriber = aai.Transcriber()
                 transcript = transcriber.transcribe(audio_content)
                 if transcript.status == aai.TranscriptStatus.error:
                     raise Exception(f"Transcription error: {transcript.error}")
                 return transcript.text
-
             transcription = await asyncio.to_thread(_transcribe)
             return transcription
         except Exception as e:
             return f"Transcription error: {str(e)}"
 
-    async def create_journal(self, user_id: str, data: JournalCreate) -> Journal:
-        """Create a new journal entry with STT, sentiment analysis, and toxic detection."""
-        journal_dict = data.dict(exclude_unset=True)
-        journal_dict["user_id"] = ObjectId(user_id)
-        journal_dict["created_at"] = datetime.utcnow()
-
-        # Collect all text sources for comprehensive sentiment analysis
-        text_sources = []
-        # Process voice note if provided
-        if data.voice_note_path:
-            with open(data.voice_note_path, "rb") as f:
-                voice_text = await self.transcribe_audio(f.read())
-            journal_dict["voice_text"] = voice_text
-            if voice_text and not voice_text.startswith("Transcription error"):
-                text_sources.append(voice_text)
-        # Add text content if provided
-        if data.text_content:
-            text_sources.append(data.text_content)
-        # Combine all text for sentiment analysis
-        combined_text = " ".join(text_sources).strip()
-
-        # --- AI Toxic Detection ---
+    async def create_journal(
+        self,
+        user_id: str,
+        emotion_label: Optional[str] = None,
+        text_content: Optional[str] = None,
+        voice_note_path: Optional[str] = None,
+        voice_text: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        journal_date: Optional[date] = None 
+    ) -> Journal:
+        # 1. AI TOXIC DETECTION
         toxic_labels = []
         toxic_confidence = 0.0
         is_toxic = False
-        if combined_text:
+        toxic_predictions = {}
+
+        texts_to_check = []
+        if text_content:
+            texts_to_check.append(text_content)
+        if voice_text:
+            texts_to_check.append(voice_text)
+
+        if texts_to_check and await self.toxic_service.check_health():
             try:
-                # Check if toxic API is available
-                is_api_healthy = await self.toxic_service.check_health()
-                if is_api_healthy:
-                    toxic_result = await self.toxic_service.analyze_text(combined_text, threshold=0.5)
-                    toxic_labels = toxic_result.toxic_labels
-                    toxic_confidence = toxic_result.confidence
-                    is_toxic = toxic_result.is_violation
+                # Lấy predictions từ text đầu
+                result = await self.toxic_service.analyze_text(texts_to_check[0], threshold=0.5)
+                toxic_predictions = result.predictions
+
+                if result.is_violation:
+                    is_toxic = True
+                    toxic_labels.extend(result.toxic_labels)
+                    toxic_confidence = result.confidence
+
+                # Merge nếu nhiều text
+                for text in texts_to_check[1:]:
+                    res = await self.toxic_service.analyze_text(text, threshold=0.5)
+                    for label, prob in res.predictions.items():
+                        toxic_predictions[label] = max(toxic_predictions.get(label, 0), prob)
+                    if res.is_violation:
+                        is_toxic = True
+                        toxic_labels.extend(res.toxic_labels)
+                        toxic_confidence = max(toxic_confidence, res.confidence)
+
+                toxic_labels = list(set(toxic_labels))
+
             except Exception as e:
-                # Log error but don't block journal creation
-                print(f"Toxic detection error: {e}")
-        # Store toxic analysis results
-        journal_dict["is_toxic"] = is_toxic
-        journal_dict["toxic_labels"] = toxic_labels
-        journal_dict["toxic_confidence"] = toxic_confidence
+                print(f"[TOXIC DETECTION ERROR] Journal: {e}")
 
-        # --- Sentiment Analysis ---
-        if combined_text:
-            # AI sentiment analysis on combined text
-            ai_label, ai_score = analyze_sentiment(combined_text)
-            # User emotion from icon selection
-            icon_label, icon_score = ICON_SENTIMENT_MAP.get(data.emotion_label, ("Neutral", 0.0))
-            # Weighted combination: 70% AI + 30% user emotion
-            # Use AI label but blend scores for nuanced result
-            if ai_label == icon_label:
-                # Agreement: average both scores
-                score = (ai_score * 0.7) + (icon_score * 0.3)
-                label = ai_label
-            else:
-                # Disagreement: trust AI more but consider user input
-                score = (ai_score * 0.7) + (icon_score * 0.3)
-                # Use AI label unless user picked strong emotion (|icon_score| > 0.7)
-                label = icon_label if abs(icon_score) > 0.7 else ai_label
+        # 2. Sentiment
+        sentiment_label = "Neutral"
+        sentiment_score = 0.0
+        if emotion_label and emotion_label in ICON_SENTIMENT_MAP:
+            sentiment_label, sentiment_score = ICON_SENTIMENT_MAP[emotion_label]
+
+        # 3. Xử lý created_at theo journal_date (NEW)
+        if journal_date:
+            if journal_date > datetime.utcnow().date():
+                raise ValueError("Journal date cannot be in the future")
+            created_at = datetime.combine(journal_date, time.min)  # 00:00:00 UTC
         else:
-            # No text: use only user emotion
-            label, score = ICON_SENTIMENT_MAP.get(data.emotion_label, ("Neutral", 0.0))
+            created_at = datetime.utcnow()
 
-        journal_dict["sentiment_label"] = label
-        journal_dict["sentiment_score"] = round(score, 2)
-        journal_dict["tags"] = data.tags or []
-        return await self.journal_repo.create(journal_dict)
+        # 4. Tạo Journal model
+        journal = Journal(
+            user_id=ObjectId(user_id),
+            created_at=created_at,
+            emotion_label=emotion_label,
+            text_content=text_content,
+            voice_note_path=voice_note_path,
+            voice_text=voice_text,
+            sentiment_label=sentiment_label,
+            sentiment_score=sentiment_score,
+            tags=tags or [],
+            is_toxic=is_toxic,
+            toxic_labels=toxic_labels,
+            toxic_confidence=toxic_confidence,
+            toxic_predictions=toxic_predictions
+        )
+
+        # Lưu DB - FIX ObjectId: Restore sau dict()
+        data = journal.dict(by_alias=True)
+        data["user_id"] = journal.user_id  # Restore ObjectId
+        created_journal = await self.journal_repo.create(data)
+
+        return created_journal
 
     async def get_user_journals(self, user_id: str) -> list[Journal]:
         """Retrieve all journals for a user."""

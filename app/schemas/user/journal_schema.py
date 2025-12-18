@@ -7,6 +7,7 @@ class JournalCreate(BaseModel):
     text_content: Optional[str]
     voice_note_path: Optional[str] = None
     tags: Optional[List[str]] = None
+    journal_date: Optional[str] = None # YYYY-MM-DD format
 
 class JournalResponse(BaseModel):
     id: str
@@ -22,6 +23,7 @@ class JournalResponse(BaseModel):
     is_toxic: bool = False
     toxic_labels: List[str] = []
     toxic_confidence: float = 0.0
+    toxic_predictions: dict = {}
 
     class Config:
         json_encoders = {
