@@ -3,6 +3,8 @@ from app.repositories.expert_article_repository import ExpertArticleRepository
 from app.models.expert_article_model import ExpertArticle
 from bson import ObjectId
 
+from app.schemas.expert.expert_article_schema import ExpertArticleResponse
+
 class ExpertArticleService:
     def __init__(self, db):
         self.repo = ExpertArticleRepository(db)
@@ -23,7 +25,20 @@ class ExpertArticleService:
         return await self.repo.list_by_expert(expert_id)
 
     async def list_pending_articles(self):
-        return await self.repo.list_all_pending()
+        """List pending articles with proper serialization"""
+        raw_articles = await self.repo.list_all_pending()
+        
+        result = []
+        for article in raw_articles:
+            # Convert ObjectId sang string
+            article["_id"] = str(article["_id"])
+            article["expert_id"] = str(article["expert_id"])
+            
+            # Map sang Pydantic model để validate & serialize đúng
+            response_article = ExpertArticleResponse(**article)
+            result.append(response_article)
+        
+        return result
 
     async def update_article_status(self, article_id: str, status: str):
         approved_at = datetime.utcnow() if status == "approved" else None
