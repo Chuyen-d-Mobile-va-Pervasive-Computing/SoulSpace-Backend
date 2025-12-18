@@ -26,12 +26,20 @@ class AnonCommentRepository:
         if comment_user_id:
             user = await self.users_collection.find_one(
                 {"_id": ObjectId(comment_user_id)},
-                {"username": 1}
+                {"username": 1, "role": 1, "avatar_url": 1} # Fetch thêm role và avatar
             )
-            comment["username"] = user.get("username", "Anonymous") if user else "Anonymous"
-            comment["user_id"] = str(comment_user_id) 
+            if user:
+                comment["username"] = user.get("username", "Anonymous")
+                comment["role"] = user.get("role", "user") # Trả về role: user/expert/admin
+                comment["user_avatar"] = user.get("avatar_url")
+                comment["user_id"] = str(comment_user_id)
+            else:
+                comment["username"] = "Anonymous"
+                comment["role"] = "user"
+                comment["user_id"] = None
         else:
             comment["username"] = "Anonymous"
+            comment["role"] = "user"
             comment["user_id"] = None
 
         comment["is_owner"] = (

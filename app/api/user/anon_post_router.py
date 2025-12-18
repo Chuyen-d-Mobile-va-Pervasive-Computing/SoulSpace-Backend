@@ -5,6 +5,7 @@ from app.services.user.anon_post_service import AnonPostService
 from app.services.common.cloudinary_service import CloudinaryService
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_current_user_optional
+from app.schemas.common.feed_schema import FeedItemResponse 
 
 router = APIRouter(prefix="/anon-posts", tags=["User - Posts (Bài viết cộng đồng)"])
 
@@ -39,7 +40,9 @@ async def create_post(
             raise HTTPException(status_code=400, detail=f"Failed to upload image: {str(e)}")
     
     # Parse hashtags from comma-separated string
-    hashtag_list = [h.strip() for h in hashtags.split(",") if h.strip()] if hashtags else []
+    hashtag_list = []
+    if hashtags:
+        hashtag_list = [h.strip() for h in hashtags.split(",") if h.strip()]
     
     service = AnonPostService(db)
     post = await service.create_post(
@@ -51,24 +54,20 @@ async def create_post(
     )
     return post
 
-
-@router.get("/", response_model=list[AnonPostResponse])
+@router.get("/", response_model=List[FeedItemResponse]) # Đổi response model
 async def list_posts(
     limit: int = Query(default=20, ge=1, le=100, description="Số lượng bài viết tối đa"),
     db=Depends(get_db),
     user: Optional[dict] = Depends(get_current_user_optional)
 ):
     """
-    Lấy danh sách bài viết cộng đồng (đã được duyệt).
-    
-    - Nếu đã đăng nhập: Hiển thị is_liked, is_owner
-    - Nếu chưa đăng nhập: Vẫn xem được nhưng không có is_liked, is_owner
+    Lấy Newsfeed tổng hợp (User Post + Expert Article).
     """
     service = AnonPostService(db)
     current_user_id = str(user["_id"]) if user else None
-    return await service.list_posts(limit=limit, current_user_id=current_user_id)
-
-
+    
+    # Gọi hàm mixed feed mới
+    return await service.get_mixed_feed(limit=limit, current_user_id=current_user_id)
 @router.get("/my-posts", response_model=list[AnonPostResponse])
 async def get_my_posts(
     limit: int = Query(default=50, ge=1, le=100),

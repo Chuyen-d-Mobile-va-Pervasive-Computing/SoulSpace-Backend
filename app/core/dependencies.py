@@ -17,6 +17,7 @@ from app.repositories.appointment_repository import AppointmentRepository
 from app.repositories.test_question_repository import TestQuestionRepository
 from app.services.common.email_service import EmailService
 from app.services.common.cloudinary_service import CloudinaryService
+from app.services.common.feed_service import FeedService
 from app.services.expert.expert_auth_service import ExpertAuthService
 from app.services.admin.admin_expert_service import AdminExpertService
 from app.services.user.expert_service import UserExpertService
@@ -289,3 +290,8 @@ def get_admin_comment_service(db: AsyncIOMotorDatabase = Depends(get_database)) 
 
 def get_admin_test_service(db: AsyncIOMotorDatabase = Depends(get_database)) -> AdminTestService:
     return AdminTestService(TestRepository(db))
+
+def get_feed_service(
+    db: AsyncIOMotorDatabase = Depends(get_database)
+) -> FeedService:
+    return FeedService(db)

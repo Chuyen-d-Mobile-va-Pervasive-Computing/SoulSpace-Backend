@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SoulSpace Chat Realtime Tester</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      .chat-box {
+        height: 400px;
+        overflow-y: auto;
+      }
+      /* Tin nhắn gửi đi: nằm bên phải, màu xanh nhạt */
+      .msg-sent {
+        background-color: #d1fae5; /* xanh ngọc nhạt */
+        align-self: flex-end;
+        text-align: right;
+        border-bottom-right-radius: 0;
+      }
+      /* Tin nhắn nhận được: nằm bên trái, màu trắng */
+      .msg-received {
+        background-color: #ffffff;
+        align-self: flex-start;
+        text-align: left;
+        border-bottom-left-radius: 0;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 p-4 h-screen flex flex-col">
+    <!-- SETUP SECTION -->
+    <div class="bg-white p-4 rounded shadow mb-4">
+      <h1 class="text-xl font-bold mb-4 text-blue-600">
+        SoulSpace Chat Tester (Localhost:8000)
+      </h1>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-sm font-bold">User Token (JWT)</label>
+          <input
+            type="text"
+            id="userToken"
+            class="w-full border p-2 rounded text-xs"
+            placeholder="Bearer token of User..."
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-bold">Expert Token (JWT)</label>
+          <input
+            type="text"
+            id="expertToken"
+            class="w-full border p-2 rounded text-xs"
+            placeholder="Bearer token of Expert..."
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-bold">Expert Profile ID</label>
+          <input
+            type="text"
+            id="expertProfileId"
+            class="w-full border p-2 rounded text-xs"
+            placeholder="ID of expert profile"
+          />
+        </div>
+        <div class="flex items-end">
+          <button
+            onclick="startConnection()"
+            class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 font-bold"
+          >
+            🚀 KẾT NỐI & BẮT ĐẦU CHAT
+          </button>
+        </div>
+      </div>
+      <div id="globalStatus" class="mt-2 text-sm text-gray-600">
+        Trạng thái: Chưa kết nối
+      </div>
+    </div>
+
+    <!-- CHAT AREA -->
+    <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 min-h-0">
+      <!-- USER INTERFACE -->
+      <div
+        class="flex flex-col bg-white rounded shadow border-l-4 border-blue-500"
+      >
+        <div class="p-3 border-b flex justify-between items-center bg-blue-50">
+          <h2 class="font-bold text-blue-800">ROLE: USER</h2>
+          <span
+            id="status-user"
+            class="text-xs px-2 py-1 rounded bg-red-200 text-red-800"
+            >Disconnected</span
+          >
+        </div>
+        <!-- Khung chat -->
+        <div
+          id="chat-user"
+          class="chat-box flex-1 p-4 flex flex-col gap-2 bg-gray-50"
+        ></div>
+
+        <div
+          id="typing-user"
+          class="text-xs text-gray-500 italic px-4 h-4"
+        ></div>
+        <div class="p-3 border-t flex gap-2">
+          <input
+            type="text"
+            id="input-user"
+            class="flex-1 border p-2 rounded"
+            placeholder="User nhắn tin..."
+            onfocus="sendTyping('user', true)"
+            onblur="sendTyping('user', false)"
+          />
+          <button
+            onclick="sendMessage('user')"
+            class="bg-blue-500 text-white px-4 py-2 rounded"
+          >
+            Gửi
+          </button>
+        </div>
+      </div>
+
+      <!-- EXPERT INTERFACE -->
+      <div
+        class="flex flex-col bg-white rounded shadow border-l-4 border-green-500"
+      >
+        <div class="p-3 border-b flex justify-between items-center bg-green-50">
+          <h2 class="font-bold text-green-800">ROLE: EXPERT</h2>
+          <span
+            id="status-expert"
+            class="text-xs px-2 py-1 rounded bg-red-200 text-red-800"
+            >Disconnected</span
+          >
+        </div>
+        <!-- Khung chat -->
+        <div
+          id="chat-expert"
+          class="chat-box flex-1 p-4 flex flex-col gap-2 bg-gray-50"
+        ></div>
+
+        <div
+          id="typing-expert"
+          class="text-xs text-gray-500 italic px-4 h-4"
+        ></div>
+        <div class="p-3 border-t flex gap-2">
+          <input
+            type="text"
+            id="input-expert"
+            class="flex-1 border p-2 rounded"
+            placeholder="Expert trả lời..."
+            onfocus="sendTyping('expert', true)"
+            onblur="sendTyping('expert', false)"
+          />
+          <button
+            onclick="sendMessage('expert')"
+            class="bg-green-600 text-white px-4 py-2 rounded"
+          >
+            Gửi
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const API_URL = "http://localhost:8000/api/v1/chat";
+      const WS_URL = "ws://localhost:8000/api/v1/chat/ws";
+
+      let sockets = { user: null, expert: null };
+      let tokens = { user: "", expert: "" };
+      let currentChatId = null;
+
+      // 1. Khởi tạo Chat qua REST API
+      async function startConnection() {
+        const userToken = document.getElementById("userToken").value.trim();
+        const expertToken = document.getElementById("expertToken").value.trim();
+        const expertId = document
+          .getElementById("expertProfileId")
+          .value.trim();
+
+        if (!userToken || !expertToken || !expertId) {
+          alert("Vui lòng nhập đầy đủ thông tin!");
+          return;
+        }
+
+        tokens.user = userToken;
+        tokens.expert = expertToken;
+
+        updateGlobalStatus("Đang lấy Chat ID...");
+
+        try {
+          // User gọi API start chat để lấy ID
+          const response = await fetch(`${API_URL}/start/${expertId}`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${userToken}` },
+          });
+
+          if (!response.ok) throw new Error("Failed to start chat");
+
+          const data = await response.json();
+          currentChatId = data.chat_id;
+
+          updateGlobalStatus(
+            `Chat ID: ${currentChatId}. Đang kết nối Socket...`
+          );
+
+          // Kết nối WS
+          connectWebSocket("user", currentChatId, userToken);
+          connectWebSocket("expert", currentChatId, expertToken);
+        } catch (error) {
+          console.error(error);
+          updateGlobalStatus(`Lỗi: ${error.message}`);
+          alert("Lỗi kết nối API. Xem Console (F12) để biết chi tiết.");
+        }
+      }
+
+      // 2. Kết nối WebSocket
+      function connectWebSocket(role, chatId, token) {
+        if (sockets[role]) sockets[role].close();
+
+        const url = `${WS_URL}/${chatId}?token=${token}`;
+        const ws = new WebSocket(url);
+
+        ws.onopen = () => {
+          updateStatus(role, "Connected", true);
+          // Ping giữ kết nối mỗi 20s
+          ws.pingInterval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN)
+              ws.send(JSON.stringify({ event: "ping" }));
+          }, 20000);
+        };
+
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          handleMessage(role, data);
+        };
+
+        ws.onclose = () => {
+          updateStatus(role, "Disconnected", false);
+          clearInterval(ws.pingInterval);
+        };
+
+        sockets[role] = ws;
+      }
+
+      // 3. Xử lý logic khi nhận tin từ Server
+      function handleMessage(receiverRole, data) {
+        console.log(`[${receiverRole} Received]`, data);
+
+        switch (data.event) {
+          case "message.new":
+            const msg = data.payload;
+
+            // Kiểm tra: Nếu tin nhắn này do chính mình (receiverRole) gửi thì BỎ QUA
+            // Vì mình đã hiển thị nó lúc bấm nút Gửi rồi (để tránh bị hiện 2 lần)
+            if (msg.sender_role === receiverRole) {
+              return;
+            }
+
+            // Nếu là tin nhắn từ đối phương -> Hiển thị bên trái
+            appendMessageUI(receiverRole, msg.content, false); // false = msg-received
+
+            // Tự động gửi "Đã xem" (Read Receipt)
+            sendReadReceipt(receiverRole, msg.id);
+            break;
+
+          case "typing.start":
+            showTyping(receiverRole, true);
+            break;
+
+          case "typing.stop":
+            showTyping(receiverRole, false);
+            break;
+        }
+      }
+
+      // 4. Gửi tin nhắn (Cập nhật quan trọng: Hiển thị ngay lập tức)
+      function sendMessage(role) {
+        const inputId = `input-${role}`;
+        const content = document.getElementById(inputId).value;
+        if (!content || !sockets[role]) return;
+
+        // BƯỚC 1: Hiển thị ngay lập tức lên giao diện của mình (Bên phải)
+        appendMessageUI(role, content, true); // true = msg-sent
+
+        // BƯỚC 2: Gửi lên Server
+        const payload = {
+          event: "message.send",
+          payload: {
+            message_type: "text",
+            content: content,
+          },
+        };
+        sockets[role].send(JSON.stringify(payload));
+
+        // Cleanup
+        document.getElementById(inputId).value = "";
+        sendTyping(role, false);
+      }
+
+      // 5. Typing Indicator
+      function sendTyping(role, isTyping) {
+        if (!sockets[role] || sockets[role].readyState !== WebSocket.OPEN)
+          return;
+        sockets[role].send(
+          JSON.stringify({
+            event: isTyping ? "typing.start" : "typing.stop",
+            payload: { is_typing: isTyping },
+          })
+        );
+      }
+
+      function sendReadReceipt(role, messageId) {
+        if (!sockets[role]) return;
+        sockets[role].send(
+          JSON.stringify({
+            event: "message.read",
+            payload: { message_id: messageId },
+          })
+        );
+      }
+
+      // === UI HELPERS ===
+
+      function appendMessageUI(role, text, isSelf) {
+        const chatDiv = document.getElementById(`chat-${role}`);
+        const msgDiv = document.createElement("div");
+
+        // Style message
+        msgDiv.className = `p-2 my-1 rounded-lg max-w-[80%] text-sm shadow ${
+          isSelf ? "msg-sent" : "msg-received"
+        }`;
+        msgDiv.innerText = text;
+
+        chatDiv.appendChild(msgDiv);
+        chatDiv.scrollTop = chatDiv.scrollHeight;
+      }
+
+      function showTyping(role, show) {
+        const targetText =
+          role === "user" ? "Expert đang soạn tin..." : "User đang soạn tin...";
+        const div = document.getElementById(`typing-${role}`);
+        div.innerText = show ? targetText : "";
+      }
+
+      function updateStatus(role, text, isConnected) {
+        const badge = document.getElementById(`status-${role}`);
+        badge.innerText = text;
+        badge.className = `text-xs px-2 py-1 rounded ${
+          isConnected
+            ? "bg-green-200 text-green-800"
+            : "bg-red-200 text-red-800"
+        }`;
+      }
+
+      function updateGlobalStatus(msg) {
+        document.getElementById("globalStatus").innerText =
+          "Trạng thái: " + msg;
+      }
+    </script>
+  </body>
+</html>

@@ -496,36 +496,66 @@ async def list_pending_articles(db=Depends(get_db), current_user=Depends(get_cur
     service = ExpertArticleService(db)
     return await service.list_pending_articles()
 
+@router.get("/expert-articles/approved", response_model=list[ExpertArticleResponse])
+@require_role(Role.ADMIN)
+async def list_approved_expert_articles(
+    limit: int = Query(50, ge=1, le=200),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Lấy danh sách bài viết expert đã duyệt."""
+    service = ExpertArticleService(db)
+    # Service gọi repo.list_by_status
+    return await service.list_articles_by_status("approved", limit)
+
+@router.get("/expert-articles/rejected", response_model=list[ExpertArticleResponse])
+@require_role(Role.ADMIN)
+async def list_rejected_expert_articles(
+    limit: int = Query(50, ge=1, le=200),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Lấy danh sách bài viết expert bị từ chối."""
+    service = ExpertArticleService(db)
+    return await service.list_articles_by_status("rejected", limit)
+
 @router.put("/expert-articles/{article_id}/status")
 @require_role(Role.ADMIN)
-async def update_article_status(article_id: str, status: str, db=Depends(get_db), current_user=Depends(get_current_user)):
+async def update_expert_article_status(
+    article_id: str,
+    status: str = Query(..., description="New status: approved or rejected"),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Cập nhật trạng thái bài viết expert."""
     if status not in ["approved", "rejected"]:
-        raise HTTPException(status_code=400, detail="Invalid status. Must be 'approved' or 'rejected'")
-        
-    service = ExpertArticleService(db)
-    article = await service.update_article_status(article_id, status)
+        raise HTTPException(status_code=400, detail="Invalid status. Use: approved or rejected")
     
-    if not article:
+    service = ExpertArticleService(db)
+    updated_article = await service.update_article_status(
+        article_id=article_id,
+        status=status,
+        approved_at=datetime.utcnow() if status == "approved" else None
+    )
+    
+    if not updated_article:
         raise HTTPException(status_code=404, detail="Article not found")
     
-    # Notify expert (with error handling)
-    try:
-        notif_service = NotificationService(db)
-        await notif_service.create_notification(
-            user_id=str(article["expert_id"]),
-            title=f"Bài viết đã được {status}",
-            message=f"Bài viết '{article['title']}' của bạn đã được {status}.",
-            type="system"
-        )
-    except Exception as e:
-        # Log error but don't fail the request
-        print(f"Warning: Failed to send notification: {e}")
-    
-    # Convert ObjectIds to strings for JSON response
-    article["_id"] = str(article["_id"])
-    article["expert_id"] = str(article["expert_id"])
-    
-    return article
+    return {"message": f"Article status updated to {status}", "article_id": article_id}
+
+@router.get("/expert-articles", response_model=list[ExpertArticleResponse])
+@require_role(Role.ADMIN)
+async def list_all_expert_articles(
+    status: str = Query(None, description="Filter: pending, approved, rejected"),
+    limit: int = Query(50, ge=1, le=200),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Lấy danh sách tất cả bài viết expert với filter."""
+    service = ExpertArticleService(db)
+    if status:
+        return await service.list_articles_by_status(status, limit)
+    return await service.list_all_articles(limit)
 
 # --- Statistics ---
 @router.get("/stats")
@@ -853,29 +883,3 @@ async def get_user_violations(
     }
 
 
-# --- Expert Articles Management Extended ---
-@router.get("/expert-articles/approved", response_model=list[ExpertArticleResponse])
-@require_role(Role.ADMIN)
-async def list_approved_expert_articles(
-    limit: int = Query(50, ge=1, le=200),
-    db=Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    """Lấy danh sách bài viết expert đã duyệt."""
-    service = ExpertArticleService(db)
-    return await service.list_articles_by_status("approved", limit)
-
-
-@router.get("/expert-articles")
-@require_role(Role.ADMIN)
-async def list_all_expert_articles(
-    status: str = Query(None, description="Filter: pending, approved, rejected"),
-    limit: int = Query(50, ge=1, le=200),
-    db=Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    """Lấy danh sách tất cả bài viết expert với filter."""
-    service = ExpertArticleService(db)
-    if status:
-        return await service.list_articles_by_status(status, limit)
-    return await service.list_all_articles(limit)

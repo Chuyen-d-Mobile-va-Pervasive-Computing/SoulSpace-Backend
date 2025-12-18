@@ -6,6 +6,7 @@ from app.models.anon_post_model import AnonPost
 from app.repositories.moderation_log_repository import ModerationLogRepository
 from app.services.common.notification_service import NotificationService
 from app.services.common.toxic_detection_service import get_toxic_detection_service
+from app.repositories.expert_article_repository import ExpertArticleRepository
 
 class AnonPostService:
     def __init__(self, db):
@@ -14,6 +15,7 @@ class AnonPostService:
         self.log_repo = ModerationLogRepository(db)
         self.notification_service = NotificationService(db)
         self.toxic_service = get_toxic_detection_service()
+        self.article_repo = ExpertArticleRepository(db) 
 
     async def create_post(self, user_id: str, content: str, is_anonymous: bool = True, hashtags: list[str] = [], image_url: str = None):
         """
@@ -195,3 +197,61 @@ class AnonPostService:
             action="Deleted"
         )
         return {"deleted": True, "post_id": post_id}
+    
+
+    async def get_mixed_feed(self, limit: int = 20, current_user_id: Optional[str] = None) -> list:
+        """
+        Lấy Newsfeed tổng hợp (User Post + Expert Article)
+        """
+        # 1. Lấy User Posts (Approved)
+        user_posts = await self.post_repo.list(limit=limit, current_user_id=current_user_id)
+        
+        # 2. Lấy Expert Articles (Approved)
+        expert_articles = await self.article_repo.list_approved_feed(limit=limit, current_user_id=current_user_id)
+        
+        feed_items = []
+
+        # Convert User Posts
+        for post in user_posts:
+            feed_items.append({
+                "_id": post["_id"],
+                "type": "user_post",
+                "author_id": post.get("user_id") or "anonymous",
+                "author_name": post.get("author_name", "Ẩn danh"),
+                "author_avatar": None, # User post hiện chưa có avatar, có thể bổ sung nếu cần
+                "author_role": "user",
+                "content": post.get("content", ""),
+                "title": None,
+                "image_url": post.get("image_url"),
+                "hashtags": post.get("hashtags", []),
+                "like_count": post.get("like_count", 0),
+                "comment_count": post.get("comment_count", 0),
+                "is_liked": post.get("is_liked", False),
+                "is_owner": post.get("is_owner", False),
+                "created_at": post.get("created_at")
+            })
+
+        # Convert Expert Articles
+        for article in expert_articles:
+            display_time = article.get("approved_at") or article.get("created_at")
+            feed_items.append({
+                "_id": article["_id"],
+                "type": "expert_article",
+                "author_id": article.get("author_id"),
+                "author_name": article.get("author_name"),
+                "author_avatar": article.get("author_avatar"),
+                "author_role": "expert",
+                "content": article.get("content", ""),
+                "title": article.get("title"),
+                "image_url": article.get("image_url"),
+                "hashtags": article.get("hashtags", []),
+                "like_count": article.get("like_count", 0),
+                "comment_count": article.get("comment_count", 0),
+                "is_liked": article.get("is_liked", False),
+                "is_owner": article.get("is_owner", False),
+                "created_at": display_time
+            })
+
+        # Sắp xếp và cắt limit
+        feed_items.sort(key=lambda x: x["created_at"], reverse=True)
+        return feed_items[:limit]

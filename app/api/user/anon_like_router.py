@@ -14,3 +14,11 @@ async def like_post(post_id: str, db=Depends(get_db), user=Depends(get_current_u
 async def unlike_post(post_id: str, db=Depends(get_db), user=Depends(get_current_user)):
     service = AnonLikeService(db)
     return await service.unlike_post(user["_id"], post_id)
+
+@router.get("/{post_id}/users")
+async def get_who_liked(post_id: str, db=Depends(get_db)):
+    """
+    Xem danh sách người đã like bài viết (Expert hoặc User đều dùng được).
+    """
+    service = AnonLikeService(db)
+    return await service.get_users_who_liked(post_id)

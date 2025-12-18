@@ -1,52 +1,26 @@
 """
 Expert role API endpoints.
-These endpoints are for expert-only operations.
 """
-from fastapi import APIRouter, Depends, HTTPException, Security, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Security, UploadFile, File, Form, Query
 from fastapi.security import HTTPBearer
-from app.core.dependencies import get_current_user, get_expert_service
+from typing import List, Optional, Union
+
+from app.core.dependencies import get_current_user, get_expert_service, get_feed_service, get_current_user_optional
 from app.core.permissions import Role, require_role
 from app.schemas.expert.expert_article_schema import ExpertArticleCreate, ExpertArticleResponse
+from app.schemas.common.feed_schema import FeedItemResponse # Import schema mới
 from app.services.expert.expert_article_service import ExpertArticleService
+from app.services.common.feed_service import FeedService # Import service mới
 from app.services.common.cloudinary_service import CloudinaryService
 from app.core.database import get_db
 
-# Security scheme for Swagger UI lock icon
 security = HTTPBearer()
 
 router = APIRouter(
     prefix="/expert", 
-    tags=["👨‍⚕️ Expert - Consultation (Chuyên gia)"],
-    dependencies=[Security(security)]  # Hiển thị lock icon cho Swagger UI
+    tags=["Expert - Forum (Chuyên gia)"],
+    dependencies=[Security(security)]
 )
-
-
-@router.get("/health")
-async def expert_health_check():
-    """
-    Health check endpoint for expert routes.
-    This is a placeholder for future expert functionality.
-    """
-    return {
-        "status": "healthy",
-        "role": "expert",
-        "message": "Expert routes are ready for implementation"
-    }
-
-
-@router.get("/info")
-@require_role(Role.EXPERT)
-async def expert_info(current_user: dict = Depends(get_current_user)):
-    """
-    Get expert-specific information.
-    This endpoint requires expert role.
-    """
-    return {
-        "message": "Expert access granted",
-        "user": current_user.get("username", "unknown"),
-        "role": current_user.get("role", "unknown")
-    }
-
 
 @router.get("/my-profile")
 @require_role(Role.EXPERT)
@@ -54,19 +28,13 @@ async def get_my_profile(
     current_user: dict = Depends(get_current_user),
     service = Depends(get_expert_service)
 ):
-    """
-    Lấy thông tin profile và profile_id của expert hiện tại.
-    Expert cần profile_id này để theo dõi trạng thái duyệt.
-    """
     user_id = str(current_user["_id"])
     profile = await service.get_expert_by_user_id(user_id)
-    
     if not profile:
         raise HTTPException(
             status_code=404, 
             detail="Expert profile not found. Please complete your profile first."
         )
-    
     return {
         "profile_id": str(profile.id),
         "user_id": user_id,
@@ -85,57 +53,116 @@ async def get_my_profile(
         "approved_by": str(profile.approved_by) if profile.approved_by else None
     }
 
+# --- ARTICLE FEATURES ---
 
 @router.post("/articles", response_model=ExpertArticleResponse)
-@require_role(Role.EXPERT)
-async def create_article(payload: ExpertArticleCreate, db=Depends(get_db), current_user=Depends(get_current_user)):
-    service = ExpertArticleService(db)
-    return await service.create_article(
-        expert_id=str(current_user["_id"]),  # Convert to string
-        title=payload.title,
-        content=payload.content,
-        image_url=payload.image_url
-    )
-
-
-@router.post("/articles/with-image", response_model=ExpertArticleResponse)
 @require_role(Role.EXPERT)
 async def create_article_with_image(
     title: str = Form(..., description="Tiêu đề bài viết"),
     content: str = Form(..., description="Nội dung bài viết"),
     hashtags: str = Form("", description="Danh sách hashtags, phân cách bằng dấu phẩy"),
-    image: UploadFile = File(None, description="Ảnh đính kèm (optional)"),
+    image: Union[UploadFile, str, None] = File(None, description="Ảnh đính kèm (optional)"),
     db=Depends(get_db),
     current_user=Depends(get_current_user),
     cloudinary_service: CloudinaryService = Depends()
 ):
     """
-    Tạo bài viết chuyên gia với ảnh đính kèm.
-    
-    - **title**: Tiêu đề bài viết (bắt buộc)
-    - **content**: Nội dung bài viết (bắt buộc)
-    - **hashtags**: Danh sách hashtags, phân cách bằng dấu phẩy (ví dụ: "health,mental")
-    - **image**: File ảnh (optional)
+    Tạo bài viết PR chuyên gia.
     """
     image_url = None
-    if image:
+    
+    if isinstance(image, UploadFile) and image.filename:
         try:
             result = await cloudinary_service.upload_avatar(image)
             image_url = result["url"]
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to upload image: {str(e)}")
     
+    hashtag_list = [h.strip() for h in hashtags.split(",") if h.strip()] if hashtags else []
+
+    from app.repositories.expert_repository import ExpertRepository
+    expert_repo = ExpertRepository(db)
+    profile = await expert_repo.get_by_user_id(str(current_user["_id"]))
+    if not profile:
+        raise HTTPException(status_code=403, detail="Expert profile not found")
+
     service = ExpertArticleService(db)
     return await service.create_article(
-        expert_id=str(current_user["_id"]),
+        expert_id=str(profile.id),
         title=title,
         content=content,
-        image_url=image_url
+        image_url=image_url,
+        hashtags=hashtag_list
     )
 
+@router.get("/articles/feed", response_model=List[FeedItemResponse])
+async def get_mixed_feed(
+    limit: int = Query(20, ge=1, le=100),
+    service: FeedService = Depends(get_feed_service),
+    current_user: Optional[dict] = Depends(get_current_user_optional) # Allow both logged-in and anon users
+):
+    """
+    Lấy Newsfeed tổng hợp:
+    - Bao gồm: Bài viết User (Approved) + Bài PR Expert (Approved).
+    - Sắp xếp: Mới nhất lên đầu.
+    - User/Expert đều xem được.
+    """
+    user_id = str(current_user["_id"]) if current_user else None
+    return await service.get_mixed_feed(limit=limit, current_user_id=user_id)
 
-@router.get("/articles", response_model=list[ExpertArticleResponse])
+
+@router.get("/articles/my-articles", response_model=List[ExpertArticleResponse])
 @require_role(Role.EXPERT)
 async def list_my_articles(db=Depends(get_db), current_user=Depends(get_current_user)):
+    """Lấy danh sách bài viết của chính Expert (để quản lý)"""
+    from app.repositories.expert_repository import ExpertRepository
+    expert_repo = ExpertRepository(db)
+    profile = await expert_repo.get_by_user_id(str(current_user["_id"]))
+    if not profile:
+        raise HTTPException(status_code=403, detail="Profile not found")
+
     service = ExpertArticleService(db)
-    return await service.get_expert_articles(str(current_user["_id"]))  # Convert to string
+    return await service.get_expert_articles(str(profile.id))
+
+@router.delete("/articles/{article_id}")
+@require_role(Role.EXPERT)
+async def delete_article(
+    article_id: str,
+    db=Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Xóa bài viết PR (Chỉ được xóa khi trạng thái là Pending)"""
+    from app.repositories.expert_repository import ExpertRepository
+    expert_repo = ExpertRepository(db)
+    profile = await expert_repo.get_by_user_id(str(current_user["_id"]))
+    if not profile:
+        raise HTTPException(status_code=403, detail="Profile not found")
+
+    service = ExpertArticleService(db)
+    success = await service.delete_article(article_id, str(profile.id))
+    if success:
+        return {"message": "Article deleted successfully"}
+    raise HTTPException(status_code=400, detail="Failed to delete. Article might not exist or is not pending.")
+
+@router.get("/articles/{article_id}", response_model=ExpertArticleResponse)
+async def get_article_detail(
+    article_id: str,
+    db=Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """Xem chi tiết bài viết (bao gồm số like, comment)"""
+    service = ExpertArticleService(db)
+    # Service cần gọi Repo.get_by_id và truyền user_id vào để check like
+    # Vì service ở trên chưa sửa, ta sửa ở đây hoặc update service
+    # Logic chuẩn là Service gọi Repo.
+    
+    # Cập nhật tạm thời service call tại đây để pass current_user_id
+    from app.repositories.expert_article_repository import ExpertArticleRepository
+    repo = ExpertArticleRepository(db)
+    
+    user_id = str(current_user["_id"]) if current_user else None
+    article = await repo.get_by_id(article_id, current_user_id=user_id)
+    
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    return article
