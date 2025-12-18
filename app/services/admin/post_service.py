@@ -63,3 +63,56 @@ class AdminPostService:
             "deleted_by": admin_id,
             "deleted_at": datetime.utcnow().isoformat()
         }
+    
+
+    async def get_top_topics(self) -> list:
+        """
+        Thống kê Top 10 Topics (Hashtags) được sử dụng nhiều nhất.
+        Các topics còn lại gộp vào 'The other topics'.
+        """
+        pipeline = [
+            # 1. Chỉ lấy các bài viết có hashtags (mảng không rỗng)
+            {"$match": {"hashtags": {"$exists": True, "$ne": []}}},
+            
+            # 2. Tách mảng hashtags ra thành từng document riêng lẻ
+            {"$unwind": "$hashtags"},
+            
+            # 3. Chuẩn hóa về chữ thường để gộp "Love" và "love" thành 1
+            {"$project": {
+                "hashtag_lower": {"$toLower": "$hashtags"}
+            }},
+            
+            # 4. Group by hashtag và đếm số lượng
+            {"$group": {
+                "_id": "$hashtag_lower",
+                "count": {"$sum": 1}
+            }},
+            
+            # 5. Sắp xếp giảm dần theo số lượng
+            {"$sort": {"count": -1}}
+        ]
+
+        cursor = self.db["anon_posts"].aggregate(pipeline)
+        results = await cursor.to_list(length=None)
+
+        final_stats = []
+        others_count = 0
+
+        # Xử lý logic Top 10 + Others
+        for index, item in enumerate(results):
+            if index < 10:
+                final_stats.append({
+                    "topic": item["_id"], # Hashtag name
+                    "count": item["count"]
+                })
+            else:
+                others_count += item["count"]
+
+        # Nếu có các topic khác ngoài top 10, thêm vào cuối
+        if others_count > 0:
+            final_stats.append({
+                "topic": "The other topics",
+                "count": others_count
+            })
+
+        return final_stats
