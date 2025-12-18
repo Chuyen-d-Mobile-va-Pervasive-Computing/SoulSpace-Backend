@@ -15,7 +15,9 @@ class AnonCommentResponse(BaseModel):
 
     user_id: Optional[str] = None   
     username: str = "Anonymous"          
-    is_owner: bool = False                 
+    avatar_url: Optional[str] = None 
+    is_owner: bool = False        
+    role: str = "user"         
 
     content: str
     moderation_status: str
