@@ -13,7 +13,7 @@ from app.core.dependencies import (
 from app.core.permissions import Role, require_role
 from app.core.database import get_db
 from app.core.security import hash_password
-from app.schemas.admin.stats_schema import TopicStatItem
+from app.schemas.admin.stats_schema import TopicStatItem, UserActivityStat
 from app.services.user.anon_post_service import AnonPostService
 from app.services.user.anon_comment_service import AnonCommentService
 from app.services.user.report_service import ReportService
@@ -898,3 +898,24 @@ async def get_post_topics_stats(
     - Tất cả các topics còn lại gộp thành 'The other topics'.
     """
     return await admin_post_service.get_top_topics()
+
+@router.get("/stats/users/clean-posts", response_model=list[UserActivityStat])
+@require_role(Role.ADMIN)
+async def get_top_clean_post_users(
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+    admin_post_service: AdminPostService = Depends(get_admin_post_service)
+):
+    """Lấy Top 3 User có nhiều bài viết sạch (Approved) nhất."""
+    return await admin_post_service.get_top_active_users_clean_posts()
+
+
+@router.get("/stats/users/energetic", response_model=list[UserActivityStat])
+@require_role(Role.ADMIN)
+async def get_top_energetic_users(
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+    admin_post_service: AdminPostService = Depends(get_admin_post_service)
+):
+    """Lấy Top 3 User sôi nổi nhất (Tổng số bài viết + bình luận)."""
+    return await admin_post_service.get_top_energetic_users()

@@ -9,7 +9,7 @@ class AnonPostRepository:
         self.collection = db["anon_posts"]
         self.users_collection = db["users"]
         self.likes_collection = db["anon_likes"]
-        self.collection.create_index([("user_id", 1), ("created_at", -1), ("moderation_status", 1)])
+        # self.collection.create_index([("user_id", 1), ("created_at", -1), ("moderation_status", 1)])
 
     async def create(self, post: dict) -> dict:
         result = await self.collection.insert_one(post)

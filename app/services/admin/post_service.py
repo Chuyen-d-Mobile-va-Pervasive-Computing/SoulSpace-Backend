@@ -1,5 +1,6 @@
 # app/services/admin/post_service.py
 from datetime import datetime
+from bson import ObjectId
 from fastapi import HTTPException
 from app.repositories.anon_post_repository import AnonPostRepository
 from app.repositories.moderation_log_repository import ModerationLogRepository
@@ -116,3 +117,105 @@ class AdminPostService:
             })
 
         return final_stats
+    
+
+    async def get_top_active_users_clean_posts(self) -> list:
+        """Top 3 users có nhiều bài viết Approved nhất"""
+        pipeline = [
+            # 1. Filter bài clean
+            {"$match": {"moderation_status": "Approved"}},
+            # 2. Group by User
+            {"$group": {
+                "_id": "$user_id",
+                "count": {"$sum": 1}
+            }},
+            # 3. Sort giảm dần
+            {"$sort": {"count": -1}},
+            # 4. Limit 3
+            {"$limit": 3},
+            # 5. Lookup thông tin User
+            {"$lookup": {
+                "from": "users",
+                "localField": "_id",
+                "foreignField": "_id",
+                "as": "user_info"
+            }},
+            # 6. Unwind user info
+            {"$unwind": "$user_info"},
+            # 7. Format output
+            {"$project": {
+                "user_id": {"$toString": "$_id"},
+                "username": "$user_info.username",
+                "avatar_url": "$user_info.avatar_url",
+                "count": 1,
+                "activity_type": "Clean Posts"
+            }}
+        ]
+        
+        cursor = self.db["anon_posts"].aggregate(pipeline)
+        return await cursor.to_list(length=3)
+
+    async def get_top_energetic_users(self) -> list:
+        """
+        Top 3 users sôi nổi (Tổng Posts + Comments).
+        FIX: Sử dụng Batch Query để tránh lỗi event loop trên Python 3.13
+        """
+        
+        # 1. Aggregate Post Counts
+        post_counts = await self.db["anon_posts"].aggregate([
+            {"$group": {"_id": "$user_id", "count": {"$sum": 1}}}
+        ]).to_list(None)
+        
+        # 2. Aggregate Comment Counts
+        comment_counts = await self.db["anon_comments"].aggregate([
+            {"$group": {"_id": "$user_id", "count": {"$sum": 1}}}
+        ]).to_list(None)
+        
+        # 3. Merge và Sum count bằng Python
+        user_scores = {}
+        
+        for item in post_counts:
+            # Chỉ lấy ID hợp lệ
+            if item.get("_id"): 
+                uid = str(item["_id"])
+                user_scores[uid] = user_scores.get(uid, 0) + item["count"]
+            
+        for item in comment_counts:
+            if item.get("_id"):
+                uid = str(item["_id"])
+                user_scores[uid] = user_scores.get(uid, 0) + item["count"]
+            
+        # 4. Sort và lấy Top 3
+        sorted_users = sorted(user_scores.items(), key=lambda x: x[1], reverse=True)[:3]
+        
+        
+        # 5. Lấy danh sách ID top 3
+        top_user_ids = []
+        for uid, _ in sorted_users:
+            if ObjectId.is_valid(uid):
+                top_user_ids.append(ObjectId(uid))
+        
+        # 6. Fetch thông tin User
+        users_cursor = self.db["users"].find(
+            {"_id": {"$in": top_user_ids}},
+            {"username": 1, "avatar_url": 1}
+        )
+        users_list = await users_cursor.to_list(length=None)
+        
+        # Tạo map để tra cứu nhanh: { "user_id_str": user_obj }
+        users_map = {str(u["_id"]): u for u in users_list}
+        
+        # 7. Ghép dữ liệu trả về
+        result = []
+        for uid, count in sorted_users:
+            if uid in users_map:
+                user_info = users_map[uid]
+                result.append({
+                    "user_id": uid,
+                    "username": user_info.get("username", "Unknown"),
+                    "avatar_url": user_info.get("avatar_url"),
+                    "count": count,
+                    "activity_type": "Total Interactions"
+                })
+                
+        return result
