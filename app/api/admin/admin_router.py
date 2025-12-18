@@ -13,7 +13,7 @@ from app.core.dependencies import (
 from app.core.permissions import Role, require_role
 from app.core.database import get_db
 from app.core.security import hash_password
-from app.schemas.admin.stats_schema import TopicStatItem, UserActivityStat
+from app.schemas.admin.stats_schema import PostStatsResponse, TopicStatItem, UserActivityStat
 from app.services.user.anon_post_service import AnonPostService
 from app.services.user.anon_comment_service import AnonCommentService
 from app.services.user.report_service import ReportService
@@ -919,3 +919,17 @@ async def get_top_energetic_users(
 ):
     """Lấy Top 3 User sôi nổi nhất (Tổng số bài viết + bình luận)."""
     return await admin_post_service.get_top_energetic_users()
+
+@router.get("/stats/posts/time-range", response_model=PostStatsResponse)
+@require_role(Role.ADMIN)
+async def get_posts_stats_by_time(
+    start_date: str = Query(..., description="Start Date (YYYY-MM-DD)"),
+    end_date: str = Query(..., description="End Date (YYYY-MM-DD)"),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+    admin_post_service: AdminPostService = Depends(get_admin_post_service)
+):
+    """
+    Lấy thống kê tổng số lượng bài viết theo từng ngày trong khoảng thời gian được chọn.
+    """
+    return await admin_post_service.get_post_stats_by_date(start_date, end_date)

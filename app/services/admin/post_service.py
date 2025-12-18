@@ -118,7 +118,6 @@ class AdminPostService:
 
         return final_stats
     
-
     async def get_top_active_users_clean_posts(self) -> list:
         """Top 3 users có nhiều bài viết Approved nhất"""
         pipeline = [
@@ -219,3 +218,55 @@ class AdminPostService:
                 })
                 
         return result
+    
+    async def get_post_stats_by_date(self, start_date: str, end_date: str) -> dict:
+        """
+        Thống kê số lượng bài viết theo từng ngày trong khoảng thời gian.
+        start_date, end_date format: YYYY-MM-DD
+        """
+        try:
+            start = datetime.strptime(start_date, "%Y-%m-%d")
+            # End date cần +1 ngày để lấy trọn vẹn ngày đó (nếu so sánh datetime)
+            # Tuy nhiên với aggregation $dateToString thì có thể filter trước
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+            # Set time to end of day
+            end = end_dt.replace(hour=23, minute=59, second=59)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+
+        pipeline = [
+            # 1. Filter theo range thời gian
+            {"$match": {
+                "created_at": {"$gte": start, "$lte": end}
+            }},
+            # 2. Convert created_at sang string YYYY-MM-DD và group
+            {"$group": {
+                "_id": {
+                    "$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}
+                },
+                "count": {"$sum": 1}
+            }},
+            # 3. Sort theo ngày tăng dần
+            {"$sort": {"_id": 1}}
+        ]
+
+        cursor = self.db["anon_posts"].aggregate(pipeline)
+        results = await cursor.to_list(length=None)
+
+        # Format lại dữ liệu
+        daily_stats = []
+        total_count = 0
+        
+        for item in results:
+            count = item["count"]
+            daily_stats.append({
+                "date": item["_id"],
+                "count": count
+            })
+            total_count += count
+
+        return {
+            "total_in_period": total_count,
+            "daily_stats": daily_stats
+        }
+    
