@@ -15,8 +15,7 @@ class AnonCommentService:
         self.log_repo = ModerationLogRepository(db)
         self.keywords_collection = db["sensitive_keywords"]
 
-    async def create_comment(self, user_id: str, post_id: str, content: str, is_preset: bool):
-        # ... (Phần logic check keyword giữ nguyên) ...
+    async def create_comment(self, user_id: str, post_id: str, content: str, is_preset: bool, is_anonymous: bool):
         detected = []
         action = "Approved"
         scan_result = "Safe"
@@ -39,14 +38,14 @@ class AnonCommentService:
 
         user_oid = ObjectId(user_id) if isinstance(user_id, str) else user_id
         
-        # Tạo comment (post_id có thể là Article ID)
         comment_data = AnonComment(
             post_id=ObjectId(post_id),
             user_id=user_oid,
             content=content,
             created_at=datetime.utcnow(),
             moderation_status=action,
-            is_preset=is_preset
+            is_preset=is_preset,
+            is_anonymous=is_anonymous # <--- Lưu trạng thái ẩn danh
         ).dict(by_alias=True)
 
         if "_id" in comment_data:

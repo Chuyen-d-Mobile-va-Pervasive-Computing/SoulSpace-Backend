@@ -8,6 +8,7 @@ class AnonCommentCreate(BaseModel):
     post_id: PyObjectId = Field(...)
     content: str = Field(..., min_length=1)
     is_preset: bool = False
+    is_anonymous: bool = False
 
 class AnonCommentResponse(BaseModel):
     id: PyObjectId = Field(alias="_id")

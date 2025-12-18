@@ -14,7 +14,8 @@ async def create_comment(payload: AnonCommentCreate, db=Depends(get_db), user=De
         user_id=user["_id"],
         post_id=payload.post_id,
         content=payload.content,
-        is_preset=payload.is_preset
+        is_preset=payload.is_preset,
+        is_anonymous=payload.is_anonymous
     )
     return comment
 

@@ -12,6 +12,7 @@ class AnonComment(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     moderation_status: str = Field(default="Pending")  # Approved | Pending | Blocked
     is_preset: bool = False
+    is_anonymous: bool = False
 
     class Config:
         validate_by_name = True
