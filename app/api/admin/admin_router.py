@@ -13,7 +13,7 @@ from app.core.dependencies import (
 from app.core.permissions import Role, require_role
 from app.core.database import get_db
 from app.core.security import hash_password
-from app.schemas.admin.stats_schema import PostStatsResponse, TopicStatItem, UserActivityStat
+from app.schemas.admin.stats_schema import DashboardChartResponse, DashboardOverviewResponse, EmotionStatItem, PostStatsResponse, TopicStatItem, UserActivityStat
 from app.services.user.anon_post_service import AnonPostService
 from app.services.user.anon_comment_service import AnonCommentService
 from app.services.user.report_service import ReportService
@@ -28,7 +28,7 @@ from app.schemas.admin.post_schema import AdminPostDeleteRequest
 from app.schemas.admin.comment_schema import AdminCommentDeleteRequest
 from bson import ObjectId
 from datetime import datetime, timedelta, date
-from typing import Optional, Literal
+from typing import List, Optional, Literal
 import re
 
 
@@ -933,3 +933,52 @@ async def get_posts_stats_by_time(
     Lấy thống kê tổng số lượng bài viết theo từng ngày trong khoảng thời gian được chọn.
     """
     return await admin_post_service.get_post_stats_by_date(start_date, end_date)
+
+
+@router.get("/stats/dashboard/overview", response_model=DashboardOverviewResponse)
+@require_role(Role.ADMIN)
+async def get_dashboard_overview(
+    date: str = Query(..., description="Anchor date (YYYY-MM-DD), e.g. 2025-12-15"),
+    period: Literal["day", "week", "month", "year"] = Query(..., description="Comparison period"),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+    admin_post_service: AdminPostService = Depends(get_admin_post_service)
+):
+    """
+    Lấy số liệu tổng quan (Users, Posts, Flagged...) có so sánh xu hướng (Trend).
+    Ví dụ: period=month & date=2025-12-15 => So sánh Tháng 12/2025 với Tháng 11/2025.
+    """
+    return await admin_post_service.get_dashboard_overview(date, period)
+
+
+@router.get("/stats/dashboard/emotions", response_model=List[EmotionStatItem])
+@require_role(Role.ADMIN)
+async def get_emotion_distribution(
+    month: str = Query(..., description="Month to analyze (YYYY-MM), e.g. 2025-12"),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+    admin_post_service: AdminPostService = Depends(get_admin_post_service)
+):
+    """
+    Lấy phân bố cảm xúc bài viết trong tháng (Positive, Negative, Neutral).
+    """
+    return await admin_post_service.get_emotion_distribution(month)
+
+
+@router.get("/stats/dashboard/chart", response_model=DashboardChartResponse)
+@require_role(Role.ADMIN)
+async def get_chart_data(
+    date: str = Query(..., description="Anchor date (YYYY-MM-DD)"),
+    period: Literal["day", "week", "month", "year"] = Query(..., description="Time range for the chart"),
+    db=Depends(get_db),
+    current_user=Depends(get_current_user),
+    admin_post_service: AdminPostService = Depends(get_admin_post_service)
+):
+    """
+    Lấy dữ liệu để vẽ biểu đồ đường (Line Chart).
+    - period=day: Trả về 24 giờ của ngày đó.
+    - period=week: Trả về 7 ngày trong tuần chứa ngày đó.
+    - period=month: Trả về các ngày trong tháng đó.
+    - period=year: Trả về 12 tháng trong năm đó.
+    """
+    return await admin_post_service.get_chart_data(date, period)
