@@ -147,3 +147,18 @@ class JournalService:
     async def get_user_journals(self, user_id: str) -> list[Journal]:
         """Retrieve all journals for a user."""
         return await self.journal_repo.get_by_user(user_id)
+    
+    async def get_journal_detail(self, journal_id: str, user_id: str) -> Journal:
+        """
+        Lấy chi tiết journal và kiểm tra quyền sở hữu.
+        Raises ValueError nếu không tìm thấy, PermissionError nếu không phải chủ.
+        """
+        journal = await self.journal_repo.get_by_id(journal_id)
+
+        if not journal:
+            raise ValueError("NOT_FOUND")
+
+        if str(journal.user_id) != user_id:
+            raise PermissionError("FORBIDDEN")
+
+        return journal

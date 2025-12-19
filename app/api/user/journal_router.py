@@ -10,6 +10,7 @@ import uuid
 import os
 from time import time
 from datetime import datetime, date
+from bson import ObjectId
 
 router = APIRouter(prefix="/journal", tags=["User - Journal (Nhật ký)"])
 
@@ -180,3 +181,34 @@ async def test_stt(
         if file_path and os.path.exists(file_path):
             os.remove(file_path)
         raise HTTPException(status_code=500, detail=f"Failed to process STT: {str(e)}")
+    
+@router.get("/{journal_id}", response_model=JournalResponse)
+async def get_journal_detail(
+    journal_id: str,
+    db=Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Lấy chi tiết một journal cụ thể.
+    Chỉ chủ sở hữu mới được xem.
+    """
+    # Validate ObjectId format sớm
+    if not ObjectId.is_valid(journal_id):
+        raise HTTPException(status_code=400, detail="Invalid journal id")
+
+    service = JournalService(JournalRepository(db))
+
+    try:
+        journal = await service.get_journal_detail(
+            journal_id=journal_id,
+            user_id=str(current_user["_id"])
+        )
+        return serialize_journal(journal)
+
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Journal not found")
+    except PermissionError:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to view this journal"
+        )

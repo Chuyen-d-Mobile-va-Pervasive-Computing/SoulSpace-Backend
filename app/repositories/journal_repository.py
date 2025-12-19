@@ -16,3 +16,9 @@ class JournalRepository:
     async def get_by_user(self, user_id: str) -> list[Journal]:
         cursor = self.collection.find({"user_id": ObjectId(user_id)}).sort("created_at", -1)
         return [Journal(**doc) async for doc in cursor]
+    
+    async def get_by_id(self, journal_id: str) -> Journal | None:
+        if not ObjectId.is_valid(journal_id):
+            return None
+        doc = await self.collection.find_one({"_id": ObjectId(journal_id)})
+        return Journal(**doc) if doc else None
