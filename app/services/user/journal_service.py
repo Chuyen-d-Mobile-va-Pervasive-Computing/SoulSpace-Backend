@@ -66,7 +66,7 @@ class JournalService:
         voice_note_path: Optional[str] = None,
         voice_text: Optional[str] = None,
         tags: Optional[List[str]] = None,
-        journal_date: Optional[date] = None 
+        journal_date: Optional[date] = None
     ) -> Journal:
         # 1. AI TOXIC DETECTION
         toxic_labels = []
@@ -82,16 +82,12 @@ class JournalService:
 
         if texts_to_check and await self.toxic_service.check_health():
             try:
-                # Lấy predictions từ text đầu
                 result = await self.toxic_service.analyze_text(texts_to_check[0], threshold=0.5)
                 toxic_predictions = result.predictions
-
                 if result.is_violation:
                     is_toxic = True
                     toxic_labels.extend(result.toxic_labels)
                     toxic_confidence = result.confidence
-
-                # Merge nếu nhiều text
                 for text in texts_to_check[1:]:
                     res = await self.toxic_service.analyze_text(text, threshold=0.5)
                     for label, prob in res.predictions.items():
@@ -100,9 +96,7 @@ class JournalService:
                         is_toxic = True
                         toxic_labels.extend(res.toxic_labels)
                         toxic_confidence = max(toxic_confidence, res.confidence)
-
                 toxic_labels = list(set(toxic_labels))
-
             except Exception as e:
                 print(f"[TOXIC DETECTION ERROR] Journal: {e}")
 
@@ -112,35 +106,42 @@ class JournalService:
         if emotion_label and emotion_label in ICON_SENTIMENT_MAP:
             sentiment_label, sentiment_score = ICON_SENTIMENT_MAP[emotion_label]
 
-        # 3. Xử lý created_at theo journal_date (NEW)
+        # 3. Xử lý created_at
         if journal_date:
             if journal_date > datetime.utcnow().date():
                 raise ValueError("Journal date cannot be in the future")
-            created_at = datetime.combine(journal_date, time.min)  # 00:00:00 UTC
+            created_at = datetime.combine(journal_date, time.min)
         else:
             created_at = datetime.utcnow()
 
-        # 4. Tạo Journal model
-        journal = Journal(
-            user_id=ObjectId(user_id),
-            created_at=created_at,
-            emotion_label=emotion_label,
-            text_content=text_content,
-            voice_note_path=voice_note_path,
-            voice_text=voice_text,
-            sentiment_label=sentiment_label,
-            sentiment_score=sentiment_score,
-            tags=tags or [],
-            is_toxic=is_toxic,
-            toxic_labels=toxic_labels,
-            toxic_confidence=toxic_confidence,
-            toxic_predictions=toxic_predictions
-        )
+        # 4. Tạo dict dữ liệu thuần (KHÔNG tạo Journal model ở đây)
+        journal_data = {
+            "user_id": ObjectId(user_id),
+            "created_at": created_at,
+            "emotion_label": emotion_label,
+            "text_content": text_content,
+            "voice_note_path": voice_note_path,
+            "voice_text": voice_text,
+            "sentiment_label": sentiment_label,
+            "sentiment_score": sentiment_score,
+            "tags": tags or [],
+            "is_toxic": is_toxic,
+            "toxic_labels": toxic_labels,
+            "toxic_confidence": toxic_confidence,
+            "toxic_predictions": toxic_predictions
+        }
 
-        # Lưu DB - FIX ObjectId: Restore sau dict()
-        data = journal.dict(by_alias=True)
-        data["user_id"] = journal.user_id  # Restore ObjectId
-        created_journal = await self.journal_repo.create(data)
+        # 5. Insert - MongoDB tự generate _id kiểu ObjectId
+        result = await self.journal_repo.collection.insert_one(journal_data)
+
+        # 6. Lấy lại document đầy đủ (có _id thật từ MongoDB)
+        created_doc = await self.journal_repo.collection.find_one({"_id": result.inserted_id})
+
+        if not created_doc:
+            raise ValueError("Failed to create journal")
+
+        # 7. Tạo Journal model từ document đã có _id ObjectId
+        created_journal = Journal(**created_doc)
 
         return created_journal
 

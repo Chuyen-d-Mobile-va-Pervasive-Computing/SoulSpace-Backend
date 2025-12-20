@@ -1,11 +1,11 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 from typing import List, Optional
 from bson import ObjectId
 from app.utils.pyobjectid import PyObjectId
 
 class Journal(BaseModel):
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    id: Optional[PyObjectId] = Field(default=None, alias="_id")
     user_id: PyObjectId
     created_at: datetime
     emotion_label: Optional[str] = None
@@ -20,7 +20,9 @@ class Journal(BaseModel):
     toxic_confidence: float = 0.0
     toxic_predictions: dict = {}
 
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str},
+        from_attributes=True
+    )
