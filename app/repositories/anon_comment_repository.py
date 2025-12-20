@@ -22,8 +22,8 @@ class AnonCommentRepository:
 
     async def _enrich_comment(self, comment: dict, current_user_id: Optional[str] = None) -> dict:
         comment_user_id = comment.get("user_id")
-        is_anonymous = comment.get("is_anonymous", False) # Lấy trạng thái ẩn danh
-        
+        is_anonymous = comment.get("is_anonymous", False)  # Lấy từ DB
+
         # Logic check owner
         is_owner = (
             current_user_id is not None and
@@ -31,29 +31,25 @@ class AnonCommentRepository:
         ) if comment_user_id else False
 
         if comment_user_id:
-            # Vẫn fetch user để lấy role (quan trọng nếu Expert comment ẩn danh - tùy logic nghiệp vụ)
-            # Thường thì Expert không nên ẩn danh để giữ uy tín, nhưng nếu user thường thì cần ẩn.
-            
             user = await self.users_collection.find_one(
                 {"_id": ObjectId(comment_user_id)},
                 {"username": 1, "role": 1, "avatar_url": 1}
             )
-            
+
             if user:
-                # Nếu ẩn danh và không phải là owner đang xem chính mình
+                # Nếu ẩn danh và không phải owner đang xem → ẩn info
                 if is_anonymous and not is_owner:
                     comment["username"] = "Anonymous"
-                    comment["avatar_url"] = None # Hoặc URL ảnh mặc định cho ẩn danh
-                    comment["user_id"] = None # Giấu ID
+                    comment["avatar_url"] = None
+                    comment["user_id"] = None
                 else:
-                    # Hiển thị bình thường nếu không ẩn danh HOẶC là owner
+                    # Hiển thị thật nếu không ẩn danh HOẶC là owner
                     comment["username"] = user.get("username", "Anonymous")
                     comment["avatar_url"] = user.get("avatar_url")
                     comment["user_id"] = str(comment_user_id)
 
                 comment["role"] = user.get("role", "user")
             else:
-                # Fallback nếu không tìm thấy user
                 comment["username"] = "Anonymous"
                 comment["role"] = "user"
                 comment["avatar_url"] = None
@@ -65,6 +61,8 @@ class AnonCommentRepository:
             comment["user_id"] = None
 
         comment["is_owner"] = is_owner
+
+        comment["is_anonymous"] = is_anonymous
 
         return comment
 
