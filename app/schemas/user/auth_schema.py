@@ -8,6 +8,7 @@ class UserRegister(BaseModel):
     password: str = Field(..., min_length=6)
     phone: Optional[str] = Field(None, description="Phone number (optional)", pattern=r"^[0-9]{10}$")
     role: Optional[Literal["user", "admin"]] = "user"
+    avatar_url: Optional[str] = Field(None)
 
     @validator("password")
     def validate_password(cls, v):
@@ -30,6 +31,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     phone: Optional[str] = None
     role: Literal["user", "admin"]
+    avatar_url: Optional[str] = None
     created_at: str
     total_points: int
 

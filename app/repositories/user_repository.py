@@ -17,6 +17,7 @@ class UserRepository:
                 "password": user.password,
                 "phone": user.phone,
                 "role": user.role,
+                "avatar_url": user.avatar_url,
                 "created_at": user.created_at,
                 "last_login_at": user.last_login_at,
                 "total_points": user.total_points,

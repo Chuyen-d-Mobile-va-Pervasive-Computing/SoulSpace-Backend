@@ -36,7 +36,6 @@ class AuthService:
         if existing_user:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
 
-        # Check phone if provided
         if user_data.phone:
             existing_phone = await self.user_repo.db.users.find_one({"phone": user_data.phone})
             if existing_phone:
@@ -48,7 +47,8 @@ class AuthService:
             email=user_data.email,
             password=hash_password(user_data.password),
             phone=user_data.phone,
-            role="user"
+            role="user",
+            avatar_url=user_data.avatar_url
         )
         try:
             created_user = await self.user_repo.create(user)
@@ -57,6 +57,7 @@ class AuthService:
                 email=created_user.email,
                 phone=created_user.phone,
                 role=created_user.role,
+                avatar_url=created_user.avatar_url,
                 created_at=created_user.created_at.isoformat(),
                 total_points=created_user.total_points
             )
