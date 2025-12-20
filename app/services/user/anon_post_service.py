@@ -218,7 +218,7 @@ class AnonPostService:
                 "type": "user_post",
                 "author_id": post.get("user_id") or "anonymous",
                 "author_name": post.get("author_name", "Ẩn danh"),
-                "author_avatar": None, # User post hiện chưa có avatar, có thể bổ sung nếu cần
+                "author_avatar": post.get("author_avatar"),
                 "author_role": "user",
                 "content": post.get("content", ""),
                 "title": None,

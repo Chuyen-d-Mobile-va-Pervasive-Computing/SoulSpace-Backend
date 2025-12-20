@@ -26,6 +26,7 @@ class AnonPostResponse(BaseModel):
     content: str
     is_anonymous: bool = True
     author_name: str = "Ẩn danh"
+    author_avatar: Optional[str] = None
     hashtags: List[str] = []
     created_at: Optional[datetime] = None
     moderation_status: str = "Pending"

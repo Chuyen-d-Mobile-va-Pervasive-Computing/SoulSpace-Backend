@@ -9,7 +9,6 @@ class AnonPostRepository:
         self.collection = db["anon_posts"]
         self.users_collection = db["users"]
         self.likes_collection = db["anon_likes"]
-        # self.collection.create_index([("user_id", 1), ("created_at", -1), ("moderation_status", 1)])
 
     async def create(self, post: dict) -> dict:
         result = await self.collection.insert_one(post)
@@ -28,35 +27,30 @@ class AnonPostRepository:
         return await self._enrich_post(post, current_user_id)
 
     async def _enrich_post(self, post: dict, current_user_id: Optional[str] = None) -> dict:
-        """Bổ sung author_name, is_liked, is_owner cho post."""
         post_user_id = post.get("user_id")
-        
-        # Xác định author_name
+
         if post.get("is_anonymous", True):
             post["author_name"] = "Ẩn danh"
-            post["user_id"] = None  # Ẩn user_id khi ẩn danh
+            post["author_avatar"] = None 
+            post["user_id"] = None
         else:
-            # Lấy username từ users collection
             user = await self.users_collection.find_one(
                 {"_id": ObjectId(post_user_id) if isinstance(post_user_id, str) else post_user_id},
-                {"username": 1}
+                {"username": 1, "avatar_url": 1}
             )
             post["author_name"] = user.get("username", "Người dùng") if user else "Người dùng"
+            post["author_avatar"] = user.get("avatar_url") if user else None
             post["user_id"] = str(post_user_id)
-        
-        # Check is_owner và is_liked
+
         if current_user_id:
             current_user_oid = ObjectId(current_user_id) if isinstance(current_user_id, str) else current_user_id
             post_user_oid = ObjectId(post_user_id) if isinstance(post_user_id, str) else post_user_id
-            
-            # Check owner
+
             post["is_owner"] = str(current_user_oid) == str(post_user_oid)
-            
-            # Nếu là owner, hiển thị user_id
+
             if post["is_owner"]:
                 post["user_id"] = str(post_user_id)
-            
-            # Check liked
+
             like = await self.likes_collection.find_one({
                 "post_id": post["_id"],
                 "user_id": current_user_oid
@@ -65,7 +59,7 @@ class AnonPostRepository:
         else:
             post["is_owner"] = False
             post["is_liked"] = False
-        
+
         return post
 
     async def list(self, limit: int = 20, current_user_id: Optional[str] = None) -> list:
