@@ -164,10 +164,66 @@ class AnonPostService:
         return await self.post_repo.list_by_user(user_id=user_id, limit=limit)
 
     async def get_post_detail(self, post_id: str, current_user_id: Optional[str] = None) -> dict:
-        """
-        Lấy chi tiết một bài viết với author info.
-        """
-        return await self.post_repo.get_by_id_with_author(post_id=post_id, current_user_id=current_user_id)
+        from bson import ObjectId
+        from fastapi import HTTPException
+
+        try:
+            oid = ObjectId(post_id)
+        except:
+            raise HTTPException(status_code=400, detail="Invalid post ID format")
+
+        # 1. KIỂM TRA EXPERT ARTICLE TRƯỚC
+        article = await self.article_repo.get_by_id(post_id, current_user_id)
+        if article:
+            display_time = article.get("approved_at") or article.get("created_at")
+            return {
+                "_id": str(article["_id"]),
+                "type": "expert_article",
+                "title": article.get("title"),
+                "content": article.get("content", ""),
+                "author_name": article.get("author_name"),
+                "author_avatar": article.get("author_avatar"),
+                "author_role": "expert",
+                "author_id": article.get("author_id"),
+                "expert_profile_id": article.get("author_id"),
+                "image_url": article.get("image_url"),
+                "hashtags": article.get("hashtags", []),
+                "like_count": article.get("like_count", 0),
+                "comment_count": article.get("comment_count", 0),
+                "is_liked": article.get("is_liked", False),
+                "is_owner": article.get("is_owner", False),
+                "created_at": display_time.isoformat() if display_time else None,
+                "moderation_status": article.get("status", "approved"),
+                "is_anonymous": False
+            }
+
+        # 2. USER POST
+        user_post = await self.post_repo.collection.find_one({"_id": oid})
+        if user_post:
+            enriched = await self.post_repo._enrich_post(user_post.copy(), current_user_id)
+            return {
+                "_id": str(enriched["_id"]),
+                "type": "user_post",
+                "user_id": enriched.get("user_id"),
+                "content": enriched.get("content", ""),
+                "title": None,
+                "is_anonymous": enriched.get("is_anonymous", True),
+                "author_name": enriched.get("author_name", "Ẩn danh"),
+                "author_avatar": enriched.get("author_avatar"),
+                "author_role": "user",
+                "author_id": enriched.get("user_id"),
+                "expert_profile_id": None,
+                "image_url": enriched.get("image_url"),
+                "hashtags": enriched.get("hashtags", []),
+                "like_count": enriched.get("like_count", 0),
+                "comment_count": enriched.get("comment_count", 0),
+                "is_liked": enriched.get("is_liked", False),
+                "is_owner": enriched.get("is_owner", False),
+                "created_at": enriched.get("created_at").isoformat() if enriched.get("created_at") else None,
+                "moderation_status": enriched.get("moderation_status", "Approved")
+            }
+
+        raise HTTPException(status_code=404, detail="Post not found")
     
     async def delete_post(self, user_id, post_id: str):
         """Xóa bài viết (chỉ owner mới được xóa)."""

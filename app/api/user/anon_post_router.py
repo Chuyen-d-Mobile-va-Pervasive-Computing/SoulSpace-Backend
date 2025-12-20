@@ -82,15 +82,12 @@ async def get_my_posts(
     return await service.get_my_posts(user_id=str(user["_id"]), limit=limit)
 
 
-@router.get("/{post_id}", response_model=AnonPostResponse)
+@router.get("/{post_id}", response_model=dict)
 async def get_post_detail(
     post_id: str,
     db=Depends(get_db),
     user: Optional[dict] = Depends(get_current_user_optional)
 ):
-    """
-    Lấy chi tiết một bài viết.
-    """
     service = AnonPostService(db)
     current_user_id = str(user["_id"]) if user else None
     return await service.get_post_detail(post_id=post_id, current_user_id=current_user_id)
