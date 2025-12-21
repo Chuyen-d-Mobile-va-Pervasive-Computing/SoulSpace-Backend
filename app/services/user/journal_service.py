@@ -327,3 +327,21 @@ class JournalService:
             "chart_data": chart,
             "stats": stats
         }
+        
+    async def delete_journal(self, journal_id: str, user_id: str) -> bool:
+        """
+        Xóa journal - chỉ chủ sở hữu mới được xóa.
+        Returns True nếu xóa thành công, False nếu không tìm thấy.
+        Raises PermissionError nếu không phải chủ sở hữu.
+        """
+        journal = await self.journal_repo.get_by_id(journal_id)
+
+        if not journal:
+            return False 
+
+        if str(journal.user_id) != user_id:
+            raise PermissionError("You do not have permission to delete this journal")
+
+        result = await self.journal_repo.collection.delete_one({"_id": ObjectId(journal_id)})
+        
+        return result.deleted_count > 0

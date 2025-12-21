@@ -256,3 +256,38 @@ async def get_journal_detail(
             status_code=403,
             detail="You do not have permission to view this journal"
         )
+        
+@router.delete("/{journal_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_journal(
+    journal_id: str,
+    db=Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Xóa một journal cụ thể.
+    Chỉ chủ sở hữu mới được xóa.
+    """
+    if not ObjectId.is_valid(journal_id):
+        raise HTTPException(status_code=400, detail="Invalid journal id")
+
+    service = JournalService(JournalRepository(db))
+
+    try:
+        deleted = await service.delete_journal(
+            journal_id=journal_id,
+            user_id=str(current_user["_id"])
+        )
+
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Journal not found")
+
+        return None
+
+    except PermissionError:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to delete this journal"
+        )
+    except Exception as e:
+        print(f"Error deleting journal: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to delete journal")
