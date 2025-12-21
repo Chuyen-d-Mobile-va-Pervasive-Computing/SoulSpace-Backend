@@ -1,7 +1,7 @@
 # app/services/user/journal_service.py
 import asyncio
 from bson import ObjectId
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from app.repositories.journal_repository import JournalRepository
 from app.schemas.user.journal_schema import JournalCreate
 from app.models.journal_model import Journal
@@ -10,7 +10,9 @@ from app.core.config import settings
 from app.services.common.toxic_detection_service import get_toxic_detection_service
 import assemblyai as aai
 from transformers import pipeline
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
+from typing import Dict, List
+import calendar
 
 # Set AssemblyAI API key
 aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
@@ -163,3 +165,165 @@ class JournalService:
             raise PermissionError("FORBIDDEN")
 
         return journal
+    
+    def _get_group_key(self, period: str):
+        return (
+            {"$dateToString": {"format": "%Y-%m", "date": "$created_at"}}
+            if period == "year"
+            else {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}}
+        )
+
+    def _validate_period_range(self, period: str, start: date, end: date):
+        if period == "week":
+            if (end - start).days != 6:
+                raise ValueError("Week period must be exactly 7 days")
+
+        elif period == "month":
+            if start.year != end.year or start.month != end.month:
+                raise ValueError("Month period must be within the same month")
+
+        elif period == "year":
+            if start.year != end.year:
+                raise ValueError("Year period must be within the same year")
+
+    def _normalize_year_range(self, period: str, start: date, end: date) -> Tuple[date, date]:
+        if period == "year":
+            return date(start.year, 1, 1), date(start.year, 12, 31)
+        return start, end
+
+    def _format_chart_data(self, results, period, start, end):
+        data_map = {r["_id"]: r for r in results}
+        chart = []
+
+        if period == "year":
+            for m in range(1, 13):
+                key = f"{start.year}-{m:02d}"
+                r = data_map.get(key, {})
+                chart.append({
+                    "date": key,
+                    "positive_count": r.get("positive_count", 0),
+                    "negative_count": r.get("negative_count", 0),
+                    "neutral_count": r.get("neutral_count", 0),
+                    "total_entries": r.get("total_entries", 0),
+                })
+        else:
+            cur = start
+            while cur <= end:
+                key = cur.strftime("%Y-%m-%d")
+                r = data_map.get(key, {})
+                chart.append({
+                    "date": key,
+                    "positive_count": r.get("positive_count", 0),
+                    "negative_count": r.get("negative_count", 0),
+                    "neutral_count": r.get("neutral_count", 0),
+                    "total_entries": r.get("total_entries", 0),
+                })
+                cur += timedelta(days=1)
+        return chart
+
+    def _calculate_current_stats(self, chart):
+        total = sum(i["total_entries"] for i in chart)
+        pos = sum(i["positive_count"] for i in chart)
+        neg = sum(i["negative_count"] for i in chart)
+
+        return {
+            "total_entries": total,
+            "positive_percentage": round(pos / total * 100, 1) if total else 0.0,
+            "negative_percentage": round(neg / total * 100, 1) if total else 0.0,
+        }
+
+    async def _calculate_trends(self, user_id, period, start, end, curr_stats):
+        prev_start, prev_end = self._previous_period(period, start)
+
+        pipeline = [
+            {"$match": {
+                "user_id": ObjectId(user_id),
+                "created_at": {"$gte": datetime.combine(prev_start, time.min),
+                               "$lte": datetime.combine(prev_end, time.max)}
+            }},
+            {"$group": {
+                "_id": self._get_group_key(period),
+                "positive_count": {"$sum": {"$cond": [{"$eq": ["$sentiment_label", "Positive"]}, 1, 0]}},
+                "negative_count": {"$sum": {"$cond": [{"$eq": ["$sentiment_label", "Negative"]}, 1, 0]}},
+                "neutral_count": {"$sum": {"$cond": [{"$eq": ["$sentiment_label", "Neutral"]}, 1, 0]}},
+                "total_entries": {"$sum": 1}
+            }}
+        ]
+
+        prev = await self.journal_repo.collection.aggregate(pipeline).to_list(None)
+
+        if not prev and curr_stats["total_entries"] > 0:
+            return {
+                "trend_positive": "up",
+                "trend_negative": "equal",
+                "trend_entries": "up"
+            }
+
+        if not prev:
+            return {"trend_positive": "equal", "trend_negative": "equal", "trend_entries": "equal"}
+
+        prev_chart = self._format_chart_data(prev, period, prev_start, prev_end)
+        prev_stats = self._calculate_current_stats(prev_chart)
+
+        def trend(curr, prev):
+            if prev == 0:
+                return "up" if curr > 0 else "equal"
+            diff = (curr - prev) / prev * 100
+            if abs(diff) < 5:
+                return "equal"
+            return "up" if diff > 0 else "down"
+
+        return {
+            "trend_positive": trend(curr_stats["positive_percentage"], prev_stats["positive_percentage"]),
+            "trend_negative": trend(curr_stats["negative_percentage"], prev_stats["negative_percentage"]),
+            "trend_entries": trend(curr_stats["total_entries"], prev_stats["total_entries"]),
+        }
+
+    def _previous_period(self, period, start):
+        if period == "week":
+            return start - timedelta(days=7), start - timedelta(days=1)
+        if period == "month":
+            prev_month = start.month - 1 or 12
+            prev_year = start.year - 1 if start.month == 1 else start.year
+            last = calendar.monthrange(prev_year, prev_month)[1]
+            return date(prev_year, prev_month, 1), date(prev_year, prev_month, last)
+        return date(start.year - 1, 1, 1), date(start.year - 1, 12, 31)
+
+    async def get_emotion_analytics(self, user_id, period, start, end):
+        self._validate_period_range(period, start, end)
+        start, end = self._normalize_year_range(period, start, end)
+
+        pipeline = [
+            {"$match": {
+                "user_id": ObjectId(user_id),
+                "created_at": {"$gte": datetime.combine(start, time.min),
+                               "$lte": datetime.combine(end, time.max)}
+            }},
+            {"$group": {
+                "_id": self._get_group_key(period),
+                "positive_count": {"$sum": {"$cond": [{"$eq": ["$sentiment_label", "Positive"]}, 1, 0]}},
+                "negative_count": {"$sum": {"$cond": [{"$eq": ["$sentiment_label", "Negative"]}, 1, 0]}},
+                "neutral_count": {"$sum": {"$cond": [{"$eq": ["$sentiment_label", "Neutral"]}, 1, 0]}},
+                "total_entries": {"$sum": 1}
+            }},
+            {"$sort": {"_id": 1}}
+        ]
+
+        results = await self.journal_repo.collection.aggregate(pipeline).to_list(None)
+        chart = self._format_chart_data(results, period, start, end)
+        stats = self._calculate_current_stats(chart)
+
+        trends = await self._calculate_trends(user_id, period, start, end, stats)
+        stats.update(trends)
+
+        if period == "year":
+            total_pos = sum(i["positive_count"] for i in chart)
+            total = sum(i["total_entries"] for i in chart)
+            stats["average_positive"] = round(total_pos / total * 100, 1) if total else 0.0
+
+        return {
+            "period": period,
+            "range": {"start": start.isoformat(), "end": end.isoformat()},
+            "chart_data": chart,
+            "stats": stats
+        }

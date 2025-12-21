@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Request
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Request, Query
 from app.schemas.user.journal_schema import JournalCreate, JournalResponse
 from app.repositories.journal_repository import JournalRepository
 from app.services.user.journal_service import JournalService
@@ -11,6 +11,7 @@ import os
 from time import time
 from datetime import datetime, date
 from bson import ObjectId
+import traceback
 
 router = APIRouter(prefix="/journal", tags=["User - Journal (Nhật ký)"])
 
@@ -32,6 +33,49 @@ def serialize_journal(journal) -> JournalResponse:
         toxic_confidence=journal.toxic_confidence,
         toxic_predictions=journal.toxic_predictions
     )
+
+@router.get("/analytics")
+async def get_emotion_analytics(
+    period: str = Query(..., regex="^(week|month|year)$", description="Loại kỳ: week, month, year"),
+    start_date: date = Query(..., description="Ngày bắt đầu (YYYY-MM-DD)"),
+    end_date: date = Query(..., description="Ngày kết thúc (YYYY-MM-DD)"),
+    db=Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Lấy thống kê cảm xúc (chart + stats) theo tuần/tháng/năm.
+    """
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=400,
+            detail="start_date must be before or equal to end_date"
+        )
+
+    today = datetime.utcnow().date()
+    if end_date > today:
+        raise HTTPException(
+            status_code=400,
+            detail="End date cannot be in the future"
+        )
+
+    service = JournalService(JournalRepository(db))
+    try:
+        data = await service.get_emotion_analytics(
+            user_id=str(current_user["_id"]),
+            period=period,
+            start=start_date,  
+            end=end_date      
+        )
+        return data
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error in get_emotion_analytics: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error while processing analytics"
+        )
 
 @router.post("/", response_model=JournalResponse)
 async def create_journal(
@@ -89,19 +133,19 @@ async def create_journal(
             file_extension = os.path.splitext(audio.filename)[1].lower()
             if file_extension not in (".mp3", ".m4a"):
                 raise HTTPException(status_code=400, detail="Only MP3 or M4A files are supported")
-            
+           
             file_name = f"{uuid.uuid4()}{file_extension}"
             temp_dir = os.path.join(os.getcwd(), "temp")
             os.makedirs(temp_dir, exist_ok=True)
             file_path = os.path.join(temp_dir, file_name)
-            
+           
             with open(file_path, "wb") as f:
                 f.write(await audio.read())
-            
+           
             # Transcribe audio
             service = JournalService(JournalRepository(db))
             voice_text = await service.transcribe_audio(open(file_path, "rb").read())
-            
+           
             # Update voice_note_path (giữ tạm để pass xuống service)
             data.voice_note_path = file_path  # xóa ở finally
 
@@ -181,7 +225,7 @@ async def test_stt(
         if file_path and os.path.exists(file_path):
             os.remove(file_path)
         raise HTTPException(status_code=500, detail=f"Failed to process STT: {str(e)}")
-    
+   
 @router.get("/{journal_id}", response_model=JournalResponse)
 async def get_journal_detail(
     journal_id: str,
