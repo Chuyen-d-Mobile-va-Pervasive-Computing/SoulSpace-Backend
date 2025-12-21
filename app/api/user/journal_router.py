@@ -2,6 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from app.schemas.user.journal_schema import JournalCreate, JournalResponse
 from app.repositories.journal_repository import JournalRepository
 from app.services.user.journal_service import JournalService
+from app.services.user.user_tree_service import PositiveActionNotFoundError, get_user_tree_service
+from app.services.user.badge_service import BadgeService
+from app.repositories.badge_repository import BadgeRepository
+from app.repositories.user_repository import UserRepository
+from app.services.user.journal_tree_orchestrator import JournalTreeOrchestrator
+from app.schemas.user.journal_schema import JournalCreate
+from app.core.constants import ICON_SENTIMENT_MAP
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.constants import ICON_SENTIMENT_MAP
@@ -12,6 +19,8 @@ from time import time
 from datetime import datetime, date
 from bson import ObjectId
 import traceback
+import json
+import logging
 
 router = APIRouter(prefix="/journal", tags=["User - Journal (Nhật ký)"])
 
@@ -77,41 +86,41 @@ async def get_emotion_analytics(
             detail="Internal server error while processing analytics"
         )
 
-@router.post("/", response_model=JournalResponse)
-async def create_journal(
+@router.post("/", status_code=201)
+async def create_journal_enhanced(
     request: Request,
-    audio: UploadFile = File(None, description="Optional audio recording (.mp3 or .m4a)"),
+    audio: Optional[UploadFile] = File(None, description="Optional audio recording (.mp3 or .m4a)"),
     db=Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    tree_service=Depends(get_user_tree_service),
 ):
+    """
+    Đăng nhật ký mới + tự động tưới cây tinh thần (nếu hợp lệ)
+    Trả về response mở rộng cho FE hiển thị animation, badge popup và nút Share.
+    """
     form_data = await request.form()
 
-    # Parse tags từ JSON string (FE gửi tags dưới dạng JSON)
+    # === 1. Parse tags ===
     raw_tags = form_data.get("tags")
     parsed_tags: List[str] = []
     if raw_tags:
         try:
-            import json
             tags_obj = json.loads(raw_tags)
             if isinstance(tags_obj, list):
-                parsed_tags = [t.get("tag_name") or t.get("name") for t in tags_obj if isinstance(t, dict)]
-                parsed_tags = [tag.strip() for tag in parsed_tags if tag.strip()]
-        except Exception:
+                parsed_tags = [
+                    (t.get("tag_name") or t.get("name") or "").strip()
+                    for t in tags_obj if isinstance(t, dict)
+                ]
+                parsed_tags = [tag for tag in parsed_tags if tag]
+        except json.JSONDecodeError:
             pass
 
+    # === 2. Parse emotion_label ===
     emotion_label = form_data.get("emotion_label")
     if not emotion_label or emotion_label not in ICON_SENTIMENT_MAP:
         emotion_label = "Neutral"
 
-    # Tạo JournalCreate để validate (không cần journal_date ở đây vì date không validate bằng Pydantic ở form)
-    data = JournalCreate(
-        emotion_label=emotion_label,
-        text_content=form_data.get("text_content"),
-        voice_note_path=None,
-        tags=parsed_tags
-    )
-
-    # Parse journal_date từ form (NEW)
+    # === 3. Parse journal_date ===
     raw_journal_date = form_data.get("journal_date")
     journal_date: Optional[date] = None
     if raw_journal_date:
@@ -122,51 +131,59 @@ async def create_journal(
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid journal_date format. Use YYYY-MM-DD")
 
-    file_path = None
-    voice_text = None  # Sẽ set nếu có audio
-    try:
-        if not data.text_content or not data.text_content.strip():
-            raise HTTPException(status_code=400, detail="Text content is required")
+    # === 4. Validate text_content ===
+    text_content = form_data.get("text_content")
+    if not text_content or not str(text_content).strip():
+        raise HTTPException(status_code=400, detail="Text content is required")
 
-        # Xử lý audio + STT
-        if audio:
+    # === 5. Xử lý audio ===
+    file_path = None
+    voice_text = None
+    voice_note_path = None
+
+    try:
+        if audio and audio.filename:
             file_extension = os.path.splitext(audio.filename)[1].lower()
-            if file_extension not in (".mp3", ".m4a"):
+            if file_extension not in {".mp3", ".m4a"}:
                 raise HTTPException(status_code=400, detail="Only MP3 or M4A files are supported")
-           
+
             file_name = f"{uuid.uuid4()}{file_extension}"
             temp_dir = os.path.join(os.getcwd(), "temp")
             os.makedirs(temp_dir, exist_ok=True)
             file_path = os.path.join(temp_dir, file_name)
-           
+
             with open(file_path, "wb") as f:
                 f.write(await audio.read())
-           
-            # Transcribe audio
-            service = JournalService(JournalRepository(db))
-            voice_text = await service.transcribe_audio(open(file_path, "rb").read())
-           
-            # Update voice_note_path (giữ tạm để pass xuống service)
-            data.voice_note_path = file_path  # xóa ở finally
 
-        # Gọi service với primitive values + journal_date (NEW)
-        service = JournalService(JournalRepository(db))
-        journal = await service.create_journal(
+            transcribe_service = JournalService(JournalRepository(db))
+            voice_text = await transcribe_service.transcribe_audio(open(file_path, "rb").read())
+            voice_note_path = file_path
+
+        # === 6. Khởi tạo services & orchestrator ===
+        journal_service = JournalService(JournalRepository(db))
+
+        orchestrator = JournalTreeOrchestrator(
+            journal_service=journal_service,
+            tree_service=tree_service
+        )
+
+        result = await orchestrator.create_journal_with_enhancements(
             user_id=str(current_user["_id"]),
-            emotion_label=data.emotion_label,
-            text_content=data.text_content,
-            voice_note_path=data.voice_note_path,
+            emotion_label=emotion_label,
+            text_content=text_content,
+            voice_note_path=voice_note_path,
             voice_text=voice_text,
-            tags=data.tags,
+            tags=parsed_tags,
             journal_date=journal_date
         )
 
-        return serialize_journal(journal)
+        return result
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create journal: {str(e)}")
+        logging.exception("Unexpected error in create_journal_enhanced: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to create journal due to internal error")
     finally:
         if file_path and os.path.exists(file_path):
             try:

@@ -24,6 +24,7 @@ from app.api.user.report_router import router as report_router
 from app.api.user.expert_router import router as experts_router
 from app.api.user.appointment_router import router as appointment_router
 from app.api.user.payment_router import router as payment_router
+from app.api.user.tree_share_router import router as tree_share_router
 
 # Admin routers
 from app.api.admin.admin_router import router as admin_router
@@ -64,12 +65,14 @@ app.include_router(anon_like_router, prefix=API_PREFIX)
 app.include_router(reminder_router, prefix=API_PREFIX)
 app.include_router(test_router, prefix=API_PREFIX)
 app.include_router(user_tree_router, prefix=API_PREFIX)
+app.include_router(tree_share_router, prefix=API_PREFIX)
 app.include_router(game_router, prefix=API_PREFIX)
 app.include_router(report_router, prefix=API_PREFIX)
 app.include_router(badge_router, prefix=API_PREFIX)
 app.include_router(experts_router, prefix=API_PREFIX)
 app.include_router(appointment_router, prefix=API_PREFIX)
 app.include_router(payment_router, prefix=API_PREFIX)
+
 
 # Admin routes
 app.include_router(admin_router, prefix=API_PREFIX)
