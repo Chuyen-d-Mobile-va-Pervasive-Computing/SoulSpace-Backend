@@ -33,6 +33,8 @@ class AnonLikeRepository:
         """Lấy danh sách user đã like bài viết"""
         pipeline = [
             {"$match": {"post_id": ObjectId(post_id)}},
+            
+            # 1. Join bảng Users
             {"$lookup": {
                 "from": "users",
                 "localField": "user_id",
@@ -40,13 +42,74 @@ class AnonLikeRepository:
                 "as": "user_info"
             }},
             {"$unwind": "$user_info"},
+            
+            # 2. Xử lý ID để khớp kiểu dữ liệu (ObjectId vs String)
+            {"$addFields": {
+                # Tạo thêm field ID dạng String để lookup nếu bên kia lưu là String
+                "expert_profile_id_str": {"$toString": "$user_info.expert_profile_id"},
+                # Giữ nguyên ID gốc để lookup nếu bên kia lưu là ObjectId
+                "expert_profile_id_obj": "$user_info.expert_profile_id"
+            }},
+
+            # 3. Join bảng Expert Profiles
+            # Chúng ta dùng $lookup pipeline phức tạp hơn để thử khớp cả 2 trường hợp (String hoặc ObjectId)
+            {"$lookup": {
+                "from": "expert_profiles",
+                "let": {
+                    "eid_str": "$expert_profile_id_str", 
+                    "eid_obj": "$expert_profile_id_obj"
+                },
+                "pipeline": [
+                    {"$match": {
+                        "$expr": {
+                            "$or": [
+                                # So sánh _id (của expert) với ID dạng String từ user
+                                {"$eq": [{"$toString": "$_id"}, "$$eid_str"]},
+                                # So sánh _id (của expert) với ID dạng ObjectId từ user
+                                {"$eq": ["$_id", "$$eid_obj"]}
+                            ]
+                        }
+                    }}
+                ],
+                "as": "expert_info"
+            }},
+            
+            # 4. Unwind expert_info (giữ lại nếu null)
+            {"$unwind": {
+                "path": "$expert_info",
+                "preserveNullAndEmptyArrays": True
+            }},
+            
+            # 5. Project kết quả
             {"$project": {
                 "_id": 0,
                 "user_id": {"$toString": "$user_id"},
-                "username": "$user_info.username",
-                "avatar_url": "$user_info.avatar_url",
                 "role": "$user_info.role",
-                "liked_at": "$created_at"
+                "liked_at": "$created_at",
+                
+                # Username: Ưu tiên lấy của Expert
+                "username": {
+                    "$cond": {
+                        "if": {"$and": [
+                            {"$eq": ["$user_info.role", "expert"]},
+                            {"$ifNull": ["$expert_info", False]}
+                        ]},
+                        "then": "$expert_info.full_name",
+                        "else": "$user_info.username"
+                    }
+                },
+                
+                # Avatar: Ưu tiên lấy của Expert
+                "avatar_url": {
+                    "$cond": {
+                        "if": {"$and": [
+                            {"$eq": ["$user_info.role", "expert"]},
+                            {"$ifNull": ["$expert_info", False]}
+                        ]},
+                        "then": {"$ifNull": ["$expert_info.avatar_url", "$user_info.avatar_url"]},
+                        "else": "$user_info.avatar_url"
+                    }
+                }
             }},
             {"$sort": {"liked_at": -1}}
         ]
