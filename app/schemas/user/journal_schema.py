@@ -29,3 +29,8 @@ class JournalResponse(BaseModel):
         json_encoders = {
             datetime: lambda dt: dt.isoformat()
         }
+        
+class DailySentimentResponse(BaseModel):
+    date: str                    # YYYY-MM-DD 
+    average_score: Optional[float] = None 
+    entry_count: int = 0        
