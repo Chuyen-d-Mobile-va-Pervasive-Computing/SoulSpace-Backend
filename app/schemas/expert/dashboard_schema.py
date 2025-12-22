@@ -7,6 +7,7 @@ class UserPreview(BaseModel):
 
 class AppointmentPreview(BaseModel):
     _id: str
+    appointment_id: str
     appointment_date: str
     start_time: str
     user: UserPreview

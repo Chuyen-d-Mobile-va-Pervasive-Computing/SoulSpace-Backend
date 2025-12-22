@@ -51,28 +51,30 @@ class ExpertDashboardService:
         pending_preview = []
         for apm in sorted(pending_appointments, key=lambda x: (x.appointment_date, x.start_time))[:2]:
             user = await self.user_repo.get_by_id(str(apm.user_id))
-            pending_preview.append(AppointmentPreview(
-                _id=str(apm.id),
-                appointment_date=apm.appointment_date,
-                start_time=apm.start_time,
-                user=UserPreview(
-                    full_name=user.username if user else "Khách",
-                    avatar_url=(user.avatar_url if user and user.avatar_url else "")
-                ),
-            ))
+            pending_preview.append({
+                    "_id": str(apm.id),
+                    "appointment_id": str(apm.id),
+                    "appointment_date": apm.appointment_date,
+                    "start_time": apm.start_time,
+                    "user": {
+                        "full_name":user.username if user else "Khách",
+                        "avatar_url":(user.avatar_url if user and user.avatar_url else "")
+                    }
+                })
 
         upcoming_preview = []
         for apm in sorted(upcoming_appointments, key=lambda x: (x.appointment_date, x.start_time))[:2]:
             user = await self.user_repo.get_by_id(str(apm.user_id))
-            upcoming_preview.append(AppointmentPreview(
-                _id=str(apm.id),
-                appointment_date=apm.appointment_date,
-                start_time=apm.start_time,
-                user=UserPreview(
-                    full_name=user.username if user else "Khách",
-                    avatar_url=(user.avatar_url if user and user.avatar_url else "")
-                )
-            ))
+            upcoming_preview.append({
+                    "_id": str(apm.id),
+                    "appointment_id": str(apm.id),
+                    "appointment_date": apm.appointment_date,
+                    "start_time": apm.start_time,
+                    "user": {
+                        "full_name":user.username if user else "Khách",
+                        "avatar_url":(user.avatar_url if user and user.avatar_url else "")
+                    }
+                })
 
         return ExpertDashboardResponse(
             expert=ExpertInfo(
