@@ -109,3 +109,38 @@ class FileUploadResponse(BaseModel):
     width: Optional[int] = None
     height: Optional[int] = None
     size: Optional[int] = None
+
+
+class ExpertProfileUpdate(BaseModel):
+    """Schema cho việc update profile, tất cả đều optional"""
+    full_name: Optional[str] = Field(None, min_length=3, max_length=50)
+    phone: Optional[str] = None
+    date_of_birth: Optional[str] = Field(None, pattern=r"^\d{2}/\d{2}/\d{4}$")
+    bio: Optional[str] = Field(None, max_length=500)
+    avatar_url: Optional[str] = None
+    clinic_name: Optional[str] = Field(None, min_length=3, max_length=100)
+    clinic_address: Optional[str] = Field(None, min_length=10, max_length=200)
+    consultation_price: Optional[int] = Field(None, ge=0)
+    years_of_experience: Optional[int] = Field(None, ge=1, le=50)
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v):
+        if v:
+            v = v.replace(" ", "").replace("-", "")
+            if not re.match(r"^0\d{9}$", v):
+                raise ValueError("Phone must be 10 digits starting with 0")
+        return v
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_age(cls, v):
+        if v:
+            try:
+                dob = datetime.strptime(v, "%d/%m/%Y").date()
+                today = datetime.now().date()
+                if dob > today:
+                    raise ValueError("Date of birth cannot be in the future")
+            except ValueError:
+                raise ValueError("Invalid date format")
+        return v

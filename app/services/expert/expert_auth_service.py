@@ -208,3 +208,53 @@ class ExpertAuthService:
             "expert_status": "approved",
             "profile_completed": True
         }
+
+    async def update_expert_profile(self, user_id: str, update_data: dict) -> Dict:
+        """Update expert profile information"""
+        
+        # 1. Kiểm tra user và lấy profile_id
+        user = await self.user_repo.get_by_id(user_id)
+        if not user or user.role != "expert":
+            raise HTTPException(status_code=403, detail="Permission denied")
+        
+        if not user.expert_profile_id:
+            raise HTTPException(status_code=404, detail="Profile not found")
+
+        profile_id = str(user.expert_profile_id)
+
+        # 2. Lọc bỏ các giá trị None (chỉ update những gì truyền vào)
+        # Lưu ý: update_data nhận vào từ router đã được lọc qua .dict(exclude_unset=True)
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No data provided for update")
+
+        # Thêm thời gian update
+        update_data["updated_at"] = datetime.utcnow()
+
+        try:
+            # 3. Update vào bảng ExpertProfile
+            updated_profile = await self.expert_repo.update(profile_id, update_data)
+            
+            if not updated_profile:
+                raise HTTPException(status_code=400, detail="Failed to update profile")
+
+            # 4. Đồng bộ dữ liệu sang bảng User (nếu có thay đổi tên hoặc avatar)
+            user_updates = {}
+            if "full_name" in update_data:
+                user_updates["username"] = update_data["full_name"]
+            if "avatar_url" in update_data:
+                user_updates["avatar_url"] = update_data["avatar_url"]
+            
+            if user_updates:
+                await self.user_repo.update(user_id, user_updates)
+
+            return {
+                "message": "Profile updated successfully",
+                "profile": updated_profile.model_dump(by_alias=True) # Trả về data mới
+            }
+
+        except Exception as e:
+            logger.error(f"✗ Profile update failed: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to update profile: {str(e)}"
+            )
