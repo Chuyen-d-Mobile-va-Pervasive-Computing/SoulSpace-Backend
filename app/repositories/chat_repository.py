@@ -19,7 +19,6 @@ class ChatRepository:
         })
         if chat_doc:
             return Chat(**chat_doc)
-
         # Tạo mới
         insert_data = {
             "user_id": ObjectId(user_id),
@@ -47,7 +46,6 @@ class ChatRepository:
         }
         result = await self.messages.insert_one(message_doc)
         message_doc["_id"] = result.inserted_id
-
         # Update chat
         unread_field = "expert_unread" if sender_role == "user" else "user_unread"
         await self.chats.update_one(
@@ -76,14 +74,28 @@ class ChatRepository:
         return [Chat(**doc) async for doc in cursor]
 
     async def mark_as_read(self, chat_id: str, reader_role: str):
+        opponent_role = "expert" if reader_role == "user" else "user"
         unread_field = "user_unread" if reader_role == "expert" else "expert_unread"
+
+        # 1. Mark ONLY unread messages from opponent
+        await self.messages.update_many(
+            {
+                "chat_id": ObjectId(chat_id),
+                "sender_role": opponent_role,
+                "is_read": False
+            },
+            {"$set": {"is_read": True}}
+        )
+
+        # 2. Recalculate unread count based on remaining unread messages
+        unread_count = await self.messages.count_documents({
+            "chat_id": ObjectId(chat_id),
+            "sender_role": opponent_role,
+            "is_read": False
+        })
+
+        # 3. Update chat unread count
         await self.chats.update_one(
             {"_id": ObjectId(chat_id)},
-            {"$set": {unread_field: 0}}
-        )
-        # Mark messages from opponent as read
-        opponent_role = "expert" if reader_role == "user" else "user"
-        await self.messages.update_many(
-            {"chat_id": ObjectId(chat_id), "sender_role": opponent_role},
-            {"$set": {"is_read": True}}
+            {"$set": {unread_field: unread_count}}
         )

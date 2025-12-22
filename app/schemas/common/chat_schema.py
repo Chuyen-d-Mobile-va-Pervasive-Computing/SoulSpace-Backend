@@ -40,7 +40,14 @@ class StartChatResponse(BaseModel):
 
 # WebSocket schemas
 class WebSocketMessage(BaseModel):
-    event: Literal["message.send", "typing.start", "typing.stop", "message.read", "ping"]
+    event: Literal[
+        "message.send",
+        "typing.start",
+        "typing.stop",
+        "message.read",
+        "ping",
+        "presence.check" 
+    ]
     payload: dict
 
 class MessageSendPayload(BaseModel):
