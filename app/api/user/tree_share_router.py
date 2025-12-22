@@ -29,6 +29,18 @@ class TreeShareResponse(BaseModel):
     message: str
     shared_post: Dict[str, Any]
 
+# Mapping level → URL ảnh cây chính xác (theo yêu cầu mới)
+TREE_LEVEL_IMAGES = {
+    1: "https://res.cloudinary.com/du0kvnalj/image/upload/v1766410252/level_1_tsepv6.png",
+    2: "https://res.cloudinary.com/du0kvnalj/image/upload/v1766410448/level_2_gtuff8.png",
+    3: "https://res.cloudinary.com/du0kvnalj/image/upload/v1766410447/level_3_rthww5.png",
+    4: "https://res.cloudinary.com/du0kvnalj/image/upload/v1766410445/level_4_ucrxtx.png",
+    5: "https://res.cloudinary.com/du0kvnalj/image/upload/v1766410447/level_5_vodjj5.png",
+    6: "https://res.cloudinary.com/du0kvnalj/image/upload/v1766410446/level_6_dtxckd.png",
+    7: "https://res.cloudinary.com/du0kvnalj/image/upload/v1766410446/level_7_b2remw.png",
+    8: "https://res.cloudinary.com/du0kvnalj/image/upload/v1766410446/level_8_ghlaa2.png",
+}
+
 @router.post("/share", response_model=TreeShareResponse)
 async def share_tree(
     payload: TreeShareRequest,
@@ -39,7 +51,7 @@ async def share_tree(
     user_oid = ObjectId(current_user["_id"])
     toxic_service = get_toxic_detection_service()
 
-    # 1. Kiểm tra đã tưới cây hôm nay chưa (BR-07: chỉ share khi đã có action hôm nay)
+    # 1. Kiểm tra đã tưới cây hôm nay chưa
     tree_status = await tree_service.get_user_tree_status(user_oid)
     if tree_status.get("can_water_today", True):
         raise HTTPException(status_code=400, detail="NO_TREE_ACTION_TODAY")
@@ -79,14 +91,17 @@ async def share_tree(
 
     full_content = "\n".join(content_lines)
 
-    # 4. Toxic detection trước khi đăng
+    # 4. Toxic detection
     if await toxic_service.check_health():
         toxic_result = await toxic_service.analyze_text(full_content, threshold=0.5)
         if toxic_result.is_violation:
             raise HTTPException(status_code=400, detail="TOXIC_CONTENT_DETECTED")
 
-    # 5. Ảnh cây theo level
-    tree_image_url = f"https://res.cloudinary.com/soulspace/tree_level_{level}.png"
+    # 5. Ảnh cây theo level – ĐÃ SỬA ĐÚNG URL MỚI
+    tree_image_url = TREE_LEVEL_IMAGES.get(level)
+    if not tree_image_url:
+        # Fallback nếu level > 8 (có thể mở rộng sau)
+        tree_image_url = TREE_LEVEL_IMAGES[8]  # Dùng level 8 làm max
 
     # 6. Tạo bài post trên cộng đồng
     post_service = AnonPostService(db)
@@ -98,7 +113,7 @@ async def share_tree(
         image_url=tree_image_url
     )
 
-    # 7. Serialize ObjectId để trả về JSON hợp lệ
+    # 7. Serialize ObjectId
     def serialize_objectid(obj: Any) -> Any:
         if isinstance(obj, ObjectId):
             return str(obj)
@@ -110,7 +125,7 @@ async def share_tree(
 
     serialized_post = serialize_objectid(post)
 
-    # 8. Vẫn lưu lịch sử share (để sau này có thể dùng cho analytics)
+    # 8. Lưu lịch sử share
     post_id_str = str(post["_id"])
 
     await db.tree_shares.insert_one({
