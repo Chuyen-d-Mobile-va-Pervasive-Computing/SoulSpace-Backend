@@ -328,6 +328,58 @@ class JournalService:
             "stats": stats
         }
         
+    async def get_daily_sentiment_for_date(
+        self,
+        user_id: str,
+        target_date: date
+    ) -> Dict:
+        """
+        Lấy điểm trung bình sentiment_score cho một ngày cụ thể.
+        Nếu không có nhật ký → average_score = None, entry_count = 0
+        """
+        start_of_day = datetime.combine(target_date, time.min)
+        end_of_day = datetime.combine(target_date, time.max)
+
+        pipeline = [
+            {
+                "$match": {
+                    "user_id": ObjectId(user_id),
+                    "created_at": {
+                        "$gte": start_of_day,
+                        "$lte": end_of_day
+                    }
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "average_score": {"$avg": "$sentiment_score"},
+                    "entry_count": {"$sum": 1}
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "average_score": {"$round": [{"$ifNull": ["$average_score", None]}, 2]},
+                    "entry_count": 1
+                }
+            }
+        ]
+
+        results = await self.journal_repo.collection.aggregate(pipeline).to_list(1)
+
+        if not results:
+            # Không có nhật ký nào trong ngày
+            return {
+                "date": target_date.isoformat(),
+                "average_score": None,
+                "entry_count": 0
+            }
+
+        result = results[0]
+        result["date"] = target_date.isoformat()
+        return result   
+        
     async def delete_journal(self, journal_id: str, user_id: str) -> bool:
         """
         Xóa journal - chỉ chủ sở hữu mới được xóa.

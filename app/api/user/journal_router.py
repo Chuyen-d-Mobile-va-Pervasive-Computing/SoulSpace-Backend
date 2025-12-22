@@ -1,17 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Request, Query
-from app.schemas.user.journal_schema import JournalCreate, JournalResponse
+from app.schemas.user.journal_schema import JournalCreate, JournalResponse, DailySentimentResponse
 from app.repositories.journal_repository import JournalRepository
 from app.services.user.journal_service import JournalService
 from app.services.user.user_tree_service import PositiveActionNotFoundError, get_user_tree_service
-from app.services.user.badge_service import BadgeService
-from app.repositories.badge_repository import BadgeRepository
-from app.repositories.user_repository import UserRepository
 from app.services.user.journal_tree_orchestrator import JournalTreeOrchestrator
 from app.schemas.user.journal_schema import JournalCreate
 from app.core.constants import ICON_SENTIMENT_MAP
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.core.constants import ICON_SENTIMENT_MAP
 from typing import List, Optional
 import uuid
 import os
@@ -42,7 +38,35 @@ def serialize_journal(journal) -> JournalResponse:
         toxic_confidence=journal.toxic_confidence,
         toxic_predictions=journal.toxic_predictions
     )
+    
+@router.get("/daily-sentiment", response_model=DailySentimentResponse)
+async def get_daily_sentiment(
+    date: date = Query(..., description="Ngày cần lấy thống kê cảm xúc (YYYY-MM-DD)"),
+    db=Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Lấy điểm trung bình cảm xúc (sentiment_score) cho một ngày cụ thể.
+    Dùng để FE hiển thị icon cảm xúc trên lịch (calendar view).
+    """
+    today = datetime.utcnow().date()
+    if date > today:
+        raise HTTPException(status_code=400, detail="Cannot query future date")
 
+    service = JournalService(JournalRepository(db))
+    try:
+        result = await service.get_daily_sentiment_for_date(
+            user_id=str(current_user["_id"]),
+            target_date=date
+        )
+        return result
+    except Exception as e:
+        logging.exception("Error in get_daily_sentiment: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error while fetching daily sentiment"
+        )
+        
 @router.get("/analytics")
 async def get_emotion_analytics(
     period: str = Query(..., regex="^(week|month|year)$", description="Loại kỳ: week, month, year"),
