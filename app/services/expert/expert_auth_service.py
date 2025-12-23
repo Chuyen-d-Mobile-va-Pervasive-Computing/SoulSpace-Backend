@@ -243,6 +243,8 @@ class ExpertAuthService:
                 user_updates["username"] = update_data["full_name"]
             if "avatar_url" in update_data:
                 user_updates["avatar_url"] = update_data["avatar_url"]
+            if "certificate_url" in update_data:
+                user_updates["certificate_url"] = update_data["certificate_url"]
             
             if user_updates:
                 await self.user_repo.update(user_id, user_updates)

@@ -118,6 +118,7 @@ class ExpertProfileUpdate(BaseModel):
     date_of_birth: Optional[str] = Field(None, pattern=r"^\d{2}/\d{2}/\d{4}$")
     bio: Optional[str] = Field(None, max_length=500)
     avatar_url: Optional[str] = None
+    certificate_url: Optional[str] = None
     clinic_name: Optional[str] = Field(None, min_length=3, max_length=100)
     clinic_address: Optional[str] = Field(None, min_length=10, max_length=200)
     consultation_price: Optional[int] = Field(None, ge=0)
