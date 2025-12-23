@@ -136,15 +136,15 @@ class AnonPostService:
         if action == "Blocked":
             await self.notification_service.create_notification(
                 user_id=user_id,
-                title="Bài viết bị chặn",
-                message=f"Bài viết của bạn đã bị chặn vì phát hiện nội dung không phù hợp. Nếu bạn cần hỗ trợ, hãy liên hệ với chuyên gia tâm lý.",
+                title="Post Blocked",
+                message="Your post has been blocked due to inappropriate content. If you need help, please contact a mental health expert.",
                 type="alert"
             )
         elif action == "Pending":
              await self.notification_service.create_notification(
                 user_id=user_id,
-                title="Bài viết đang chờ duyệt",
-                message="Bài viết của bạn đang được xem xét. Chúng tôi sẽ thông báo khi có kết quả.",
+                title="Post Pending Review",
+                message="Your post is under review. We will notify you once it's approved.",
                 type="system"
             )
         
@@ -208,7 +208,7 @@ class AnonPostService:
                 "content": enriched.get("content", ""),
                 "title": None,
                 "is_anonymous": enriched.get("is_anonymous", True),
-                "author_name": enriched.get("author_name", "Ẩn danh"),
+                "author_name": enriched.get("author_name", "Anonymous"),
                 "author_avatar": enriched.get("author_avatar"),
                 "author_role": "user",
                 "author_id": enriched.get("user_id"),
@@ -273,7 +273,7 @@ class AnonPostService:
                 "_id": post["_id"],
                 "type": "user_post",
                 "author_id": post.get("user_id") or "anonymous",
-                "author_name": post.get("author_name", "Ẩn danh"),
+                "author_name": post.get("author_name", "Anonymous"),
                 "author_avatar": post.get("author_avatar"),
                 "author_role": "user",
                 "content": post.get("content", ""),

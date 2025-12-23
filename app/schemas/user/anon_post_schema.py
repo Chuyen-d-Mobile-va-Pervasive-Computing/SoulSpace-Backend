@@ -18,14 +18,14 @@ class AnonPostCreate(BaseModel):
 class AnonPostResponse(BaseModel):
     """
     Schema response cho bài viết.
-    - Nếu is_anonymous=True: author_name = "Ẩn danh"
+    - Nếu is_anonymous=True: author_name = "Anonymous"
     - Nếu is_anonymous=False: author_name = username của người đăng
     """
     id: PyObjectId = Field(alias="_id")
     user_id: Optional[str] = None
     content: str
     is_anonymous: bool = True
-    author_name: str = "Ẩn danh"
+    author_name: str = "Anonymous"
     author_avatar: Optional[str] = None
     hashtags: List[str] = []
     created_at: Optional[datetime] = None

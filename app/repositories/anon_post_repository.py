@@ -30,7 +30,7 @@ class AnonPostRepository:
         post_user_id = post.get("user_id")
 
         if post.get("is_anonymous", True):
-            post["author_name"] = "Ẩn danh"
+            post["author_name"] = "Anonymous"
             post["author_avatar"] = None 
             post["user_id"] = None
         else:
@@ -38,7 +38,7 @@ class AnonPostRepository:
                 {"_id": ObjectId(post_user_id) if isinstance(post_user_id, str) else post_user_id},
                 {"username": 1, "avatar_url": 1}
             )
-            post["author_name"] = user.get("username", "Người dùng") if user else "Người dùng"
+            post["author_name"] = user.get("username", "User") if user else "User"
             post["author_avatar"] = user.get("avatar_url") if user else None
             post["user_id"] = str(post_user_id)
 
