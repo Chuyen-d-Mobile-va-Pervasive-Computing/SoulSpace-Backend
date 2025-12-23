@@ -95,6 +95,7 @@ class CloudinaryService:
             "height": result.get("height"),
             "size": result.get("bytes")
         }
+    
     async def upload_certificate(self, file: UploadFile) -> Dict:
         """Upload certificate to Cloudinary"""
         
@@ -175,3 +176,62 @@ class CloudinaryService:
         except Exception as e:
             logger.error(f"✗ Delete failed: {str(e)}")
             return False
+
+    async def upload_post_image(self, file: UploadFile) -> Dict:
+        """
+        Upload ảnh cho bài viết (Article/Post).
+        - Cho phép: JPG, PNG, WEBP, JPEG.
+        - Max size: 5MB.
+        - Không crop cứng, giữ nguyên tỉ lệ.
+        """
+        
+        allowed_types = ["image/jpeg", "image/png", "image/jpg", "image/webp"]
+        if file.content_type not in allowed_types:
+            # Fallback check extension nếu content-type header bị sai
+            if not any(file.filename.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.webp']):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid image format. Allowed: JPG, PNG, WEBP. Received: {file.content_type}",
+                )
+        
+        # 2. Read file
+        await file.seek(0) 
+        content = await file.read()
+        
+        # 3. Validate size (5MB cho bài viết)
+        size_mb = len(content) / (1024 * 1024)
+        if size_mb > 5:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Image exceeds 5MB limit (received {size_mb:.2f}MB)",
+            )
+        
+        # 4. Upload
+        loop = asyncio.get_event_loop()
+        try:
+            result = await loop.run_in_executor(
+                None,
+                lambda: cloudinary.uploader.upload(
+                    content,
+                    folder="soulspace/articles",  # Lưu vào folder riêng
+                    resource_type="image",
+                    # Không dùng transformation crop vuông 500x500 như avatar
+                    transformation=[
+                        {"quality": "auto"},
+                        {"fetch_format": "auto"}
+                    ]
+                )
+            )
+            
+            logger.info(f"✓ Article image uploaded: {result.get('public_id')}")
+            
+            return {
+                "url": result["secure_url"],
+                "public_id": result["public_id"],
+                "format": result["format"],
+                "width": result.get("width"),
+                "height": result.get("height")
+            }
+        except Exception as e:
+            logger.error(f"Cloudinary upload error: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Image upload failed: {str(e)}")

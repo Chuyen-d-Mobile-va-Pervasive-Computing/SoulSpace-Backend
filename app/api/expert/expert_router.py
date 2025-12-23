@@ -54,32 +54,44 @@ async def get_my_profile(
     }
 
 # --- ARTICLE FEATURES ---
-
 @router.post("/articles", response_model=ExpertArticleResponse)
 @require_role(Role.EXPERT)
 async def create_article_with_image(
     title: str = Form(..., description="Tiêu đề bài viết"),
     content: str = Form(..., description="Nội dung bài viết"),
     hashtags: str = Form("", description="Danh sách hashtags, phân cách bằng dấu phẩy"),
-    image: Union[UploadFile, str, None] = File(None, description="Ảnh đính kèm (optional)"),
+    image: Union[UploadFile, str, None] = File(None, description="Ảnh đính kèm hoặc URL ảnh"),
     db=Depends(get_db),
     current_user=Depends(get_current_user),
     cloudinary_service: CloudinaryService = Depends()
 ):
-    """
-    Tạo bài viết PR chuyên gia.
-    """
     image_url = None
     
-    if isinstance(image, UploadFile) and image.filename:
-        try:
-            result = await cloudinary_service.upload_avatar(image)
-            image_url = result["url"]
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to upload image: {str(e)}")
+    # --- DEBUG LOG ---
+    print(f"DEBUG: Type: {type(image)}")
+    # -----------------
+
+    # CASE 1: Người dùng gửi File (UploadFile từ starlette hoặc fastapi)
+    # SỬA Ở ĐÂY: Dùng hasattr để kiểm tra thay vì isinstance
+    if image is not None and hasattr(image, "filename"):
+        # Ép kiểu thủ công để IDE không báo lỗi (nếu cần), hoặc cứ dùng trực tiếp
+        file_obj = image 
+        if file_obj.filename: # Kiểm tra tên file không rỗng
+            try:
+                result = await cloudinary_service.upload_post_image(file_obj)
+                image_url = result["url"]
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Image upload failed: {str(e)}")
     
+    # CASE 2: Người dùng gửi String (URL ảnh có sẵn)
+    elif isinstance(image, str):
+        if image.strip(): 
+            image_url = image
+
+    # Xử lý hashtags
     hashtag_list = [h.strip() for h in hashtags.split(",") if h.strip()] if hashtags else []
 
+    # Get Expert Profile
     from app.repositories.expert_repository import ExpertRepository
     expert_repo = ExpertRepository(db)
     profile = await expert_repo.get_by_user_id(str(current_user["_id"]))
