@@ -1,4 +1,3 @@
-# app/services/expert/appointment_service.py
 from fastapi import HTTPException, status
 from app.repositories.appointment_repository import AppointmentRepository
 from app.repositories.payment_repository import PaymentRepository

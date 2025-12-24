@@ -1,4 +1,3 @@
-# app/schemas/user/appointment_schema.py
 from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
 from datetime import datetime

@@ -271,9 +271,7 @@ class AdminPostService:
         }
     
 
-        # ==========================================
     # HELPER: Tính toán khoảng thời gian
-    # ==========================================
     def _get_date_ranges(self, anchor_date_str: str, period: str):
         """
         Tính toán current_range (start, end) và previous_range (start, end)
@@ -344,9 +342,8 @@ class AdminPostService:
             "trend": "up" if percent > 0 else "down" if percent < 0 else "neutral"
         }
 
-    # ==========================================
     # API 1: Overview Stats (Cards)
-    # ==========================================
+    
     async def get_dashboard_overview(self, anchor_date: str, period: str):
         (curr_start, curr_end), (prev_start, prev_end) = self._get_date_ranges(anchor_date, period)
 
@@ -377,9 +374,8 @@ class AdminPostService:
             "ai_flagged": self._calculate_trend(curr_flag, prev_flag),
         }
 
-    # ==========================================
     # API 2: Emotion Distribution
-    # ==========================================
+
     async def get_emotion_distribution(self, month_str: str):
         """
         Lấy phân bố cảm xúc theo tháng (YYYY-MM).
@@ -431,9 +427,9 @@ class AdminPostService:
             
         return data
 
-    # ==========================================
+
     # API 3: Chart Data (Time Series)
-    # ==========================================
+
     async def get_chart_data(self, anchor_date: str, period: str):
         (start, end), _ = self._get_date_ranges(anchor_date, period)
         

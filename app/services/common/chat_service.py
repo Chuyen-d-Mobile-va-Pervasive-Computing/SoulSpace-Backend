@@ -1,4 +1,3 @@
-# app/services/common/chat_service.py
 from fastapi import HTTPException, status
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.expert_repository import ExpertRepository

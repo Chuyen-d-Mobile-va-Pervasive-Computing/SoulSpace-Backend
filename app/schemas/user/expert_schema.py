@@ -1,4 +1,3 @@
-# app/schemas/user/expert_schema.py
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from app.utils.pyobjectid import PyObjectId

@@ -45,7 +45,7 @@ class AnonCommentService:
             created_at=datetime.utcnow(),
             moderation_status=action,
             is_preset=is_preset,
-            is_anonymous=is_anonymous # <--- Lưu trạng thái ẩn danh
+            is_anonymous=is_anonymous # Lưu trạng thái ẩn danh
         ).dict(by_alias=True)
 
         if "_id" in comment_data:
@@ -58,7 +58,7 @@ class AnonCommentService:
         enriched_comment = await self.comment_repo._enrich_comment(new_comment.copy(), user_id)
         enriched_comment["user_id"] = str(enriched_comment["user_id"]) if enriched_comment["user_id"] else None
 
-        # --- LOGIC TĂNG COUNT MỚI ---
+        # LOGIC TĂNG COUNT MỚI
         if action == "Approved":
             await self.increment_comment_count(post_id)
 

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional
 
-# ===== REQUEST SCHEMAS =====
+# REQUEST SCHEMAS
 
 class GameCompleteRequest(BaseModel):
     """Request khi user hoàn thành minigame"""
@@ -22,7 +22,7 @@ class GameCompleteRequest(BaseModel):
             }
         }
 
-# ===== RESPONSE SCHEMAS =====
+# RESPONSE SCHEMAS
 
 class BadgeInfo(BaseModel):
     """Badge info trong response"""

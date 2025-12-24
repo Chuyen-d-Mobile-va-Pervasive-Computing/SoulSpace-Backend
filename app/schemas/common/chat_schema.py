@@ -1,4 +1,3 @@
-# app/schemas/common/chat_schema.py
 from pydantic import BaseModel
 from typing import List, Optional, Literal
 from datetime import datetime

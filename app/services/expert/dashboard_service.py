@@ -1,4 +1,3 @@
-# app/services/expert/dashboard_service.py
 from fastapi import HTTPException, status
 from app.repositories.appointment_repository import AppointmentRepository
 from app.repositories.expert_repository import ExpertRepository

@@ -10,9 +10,9 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-# ===========================
+
 # Global Variables & Patterns (from Flask app)
-# ===========================
+
 
 # Profanity patterns
 PROFANITY_PATTERNS = [
@@ -112,14 +112,14 @@ class ToxicDetectionService:
             train_csv = self.only_model_path / "train.csv"
             
             if not train_csv.exists():
-                print(f"   ❌ Training data not found: {train_csv}")
+                print(f"Training data not found: {train_csv}")
                 return False
             
             if not auto_train_script.exists():
-                print(f"   ❌ Auto-train script not found: {auto_train_script}")
+                print(f"Auto-train script not found: {auto_train_script}")
                 return False
             
-            print("   🚀 Starting auto-training (this may take a few minutes)...")
+            print("Starting auto-training (this may take a few minutes)...")
             
             # Use importlib to dynamically import auto_train
             import sys
@@ -138,7 +138,7 @@ class ToxicDetectionService:
             return result
             
         except Exception as e:
-            print(f"   ❌ Auto-train failed: {e}")
+            print(f"Auto-train failed: {e}")
             return False
     
     def _load_models(self):
@@ -146,13 +146,13 @@ class ToxicDetectionService:
         try:
             # Check if models exist, if not try to auto-train
             if not self.models_path.exists() or not self._check_models_exist():
-                print(f"⚠️ Toxic models not found at: {self.models_path}")
+                print(f"Toxic models not found at: {self.models_path}")
                 
                 # Try auto-train
                 if self._auto_train():
-                    print("✅ Auto-training completed!")
+                    print("Auto-training completed!")
                 else:
-                    print("   Models not available. Posts will be approved without AI scan.")
+                    print("Models not available. Posts will be approved without AI scan.")
                     return
             
             # Lazy imports - only import when loading models
@@ -175,14 +175,14 @@ class ToxicDetectionService:
             self.lemmatizer = WordNetLemmatizer()
             
             self.models_loaded = True
-            print("✅ Toxic detection models loaded successfully!")
+            print("Toxic detection models loaded successfully!")
             
         except FileNotFoundError as e:
-            print(f"⚠️ Toxic model files not found: {e}")
-            print("   Run: cd Only_Model && python save_models.py")
+            print(f"Toxic model files not found: {e}")
+            print("Run: cd Only_Model && python save_models.py")
         except Exception as e:
             import traceback
-            print(f"❌ Error loading toxic models: {e}")
+            print(f"Error loading toxic models: {e}")
             traceback.print_exc()
     
     def _normalize_for_toxic(self, text: str) -> str:

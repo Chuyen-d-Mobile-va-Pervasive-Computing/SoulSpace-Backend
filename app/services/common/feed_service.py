@@ -24,7 +24,7 @@ class FeedService:
         # 3. Chuẩn hóa dữ liệu về FeedItemResponse trước khi merge
         feed_items = []
 
-        # -- Convert User Posts --
+        # Convert User Posts
         for post in user_posts:
             # Xác định avatar và author name cho user
             # Logic anon_post_repo._enrich_post đã xử lý tên, ở đây ta map sang schema chung
@@ -48,7 +48,7 @@ class FeedService:
                 "created_at": post.get("created_at")
             })
 
-        # -- Convert Expert Articles --
+        # Convert Expert Articles
         for article in expert_articles:
             # Sử dụng approved_at làm mốc thời gian hiển thị cho bài PR (hoặc created_at tùy logic)
             # Thường bài PR tính lúc approved mới public

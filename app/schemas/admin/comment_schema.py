@@ -1,4 +1,3 @@
-# app/schemas/admin/comment_schema.py
 from pydantic import BaseModel, Field
 
 class AdminCommentDeleteRequest(BaseModel):

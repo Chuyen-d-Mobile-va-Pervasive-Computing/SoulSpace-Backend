@@ -1,4 +1,3 @@
-# app/services/admin/comment_service.py
 """
 Service for comment management operations (Admin role only)
 """
