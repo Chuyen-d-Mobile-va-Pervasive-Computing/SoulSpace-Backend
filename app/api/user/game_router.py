@@ -15,7 +15,7 @@ from app.repositories.badge_repository import BadgeRepository
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 
-router = APIRouter(prefix="/game", tags=["👤 User - Games (Trò chơi)"])
+router = APIRouter(prefix="/game", tags=["User - Games (Trò chơi)"])
 
 def get_game_service(db=Depends(get_db)):
     game_repo = GameRepository(db)
@@ -61,7 +61,7 @@ async def get_crossword_words(
     """
     return await service.get_crossword_words()
 
-# ===== CORE ENDPOINT =====
+# CORE ENDPOINT
 
 @router.post("/complete", response_model=GameCompleteResponse)
 async def complete_game(
@@ -70,7 +70,6 @@ async def complete_game(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    ✅✅ API CHÍNH QUAN TRỌNG NHẤT ✅✅
     
     Xử lý khi user hoàn thành minigame
     
@@ -107,7 +106,7 @@ async def complete_game(
     
     return await service.complete_game(user_id, request)
 
-# ===== USER STATS ENDPOINTS =====
+# USER STATS ENDPOINTS
 
 @router.get("/user/{user_id}/points", response_model=UserPointsResponse)
 async def get_user_points(

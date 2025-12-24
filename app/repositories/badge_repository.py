@@ -59,7 +59,7 @@ class BadgeRepository:
             logger.info(f"   Converted to {len(result)} UserBadge objects")
             return result
         except Exception as e:
-            logger.error(f"❌ Error fetching user badges: {e}")
+            logger.error(f"Error fetching user badges: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to fetch user badges: {str(e)}"
@@ -71,14 +71,14 @@ class BadgeRepository:
             logger.info(f"   Attempting to create user_badge: user_id={user_badge.user_id}, badge_id={user_badge.badge_id}")
             result = await self.db.user_badges.insert_one(user_badge.dict(by_alias=True))
             user_badge.id = result.inserted_id
-            logger.info(f"   ✅ Successfully created user_badge with _id={result.inserted_id}")
+            logger.info(f"Successfully created user_badge with _id={result.inserted_id}")
             return user_badge
         except Exception as e:
             # Duplicate key error (user đã có badge này)
             if "duplicate key" in str(e).lower():
-                logger.warning(f"   ⚠️  Duplicate badge detected: user_id={user_badge.user_id}, badge_id={user_badge.badge_id}")
+                logger.warning(f"Duplicate badge detected: user_id={user_badge.user_id}, badge_id={user_badge.badge_id}")
                 return None
-            logger.error(f"   ❌ Error creating user_badge: {e}")
+            logger.error(f"Error creating user_badge: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to create user badge: {str(e)}"

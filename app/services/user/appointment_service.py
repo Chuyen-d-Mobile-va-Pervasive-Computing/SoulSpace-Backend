@@ -1,4 +1,3 @@
-# app/services/user/appointment_service.py (sửa – thêm phương thức cancel)
 from fastapi import HTTPException, status
 from app.repositories.appointment_repository import AppointmentRepository
 from app.repositories.expert_repository import ExpertRepository

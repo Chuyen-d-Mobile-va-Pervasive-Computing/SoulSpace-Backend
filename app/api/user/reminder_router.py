@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime, timedelta
 
-router = APIRouter(prefix="/reminders", tags=["👤 User - Reminders (Nhắc nhở)"])
+router = APIRouter(prefix="/reminders", tags=["User - Reminders (Nhắc nhở)"])
 
 # Initialize scheduler
 scheduler = AsyncIOScheduler()

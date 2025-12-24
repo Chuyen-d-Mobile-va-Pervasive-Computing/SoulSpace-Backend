@@ -15,7 +15,7 @@ from app.services.user.user_tree_service import (
     DatabaseOperationError
 )
 
-router = APIRouter(prefix="/tree", tags=["👤 User - Mental Tree (Cây tinh thần)"])
+router = APIRouter(prefix="/tree", tags=["User - Mental Tree (Cây tinh thần)"])
 
 @router.get(
     "/status",

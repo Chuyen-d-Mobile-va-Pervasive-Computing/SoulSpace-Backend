@@ -1,4 +1,3 @@
-# app/api/user/tree_share_router.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any

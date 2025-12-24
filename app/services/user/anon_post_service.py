@@ -34,7 +34,7 @@ class AnonPostService:
         toxic_confidence = 0.0
         toxic_predictions = {}
         
-        # --- AI Toxic Detection ---
+        # AI Toxic Detection
         try:
             # Check if toxic API is available
             is_api_healthy = await self.toxic_service.check_health()
@@ -70,7 +70,7 @@ class AnonPostService:
             scan_result = "Error"
             flagged_reason = f"AI scan error: {str(e)}"
         
-        # --- Basic content validation (keep these checks) ---
+        # Basic content validation (keep these checks)
         # Check for links
         if re.search(r"(https?:\/\/\S+|(?:www\.)?[a-zA-Z0-9-]+\.[a-z]{2,}(\/\S*)?)", content, re.IGNORECASE):
             if action == "Approved":
@@ -85,7 +85,7 @@ class AnonPostService:
                 scan_result = "Suspicious"
             flagged_reason = (flagged_reason or "") + " | Contains phone number"
         
-        # --- Create post ---
+        # Create post
         user_oid = ObjectId(user_id) if isinstance(user_id, str) else user_id
         
         post_data = AnonPost(
@@ -116,7 +116,7 @@ class AnonPostService:
 
         new_post = await self.post_repo.create(post_data)
 
-        # --- Log moderation ---
+        # Log moderation
         await self.log_repo.create_log(
             content_id=new_post["_id"],
             content_type="post",
@@ -132,7 +132,7 @@ class AnonPostService:
         enriched_post["toxic_confidence"] = toxic_confidence
         enriched_post["toxic_predictions"] = toxic_predictions
 
-        # --- Notification Logic ---
+        # Notification Logic
         if action == "Blocked":
             await self.notification_service.create_notification(
                 user_id=user_id,

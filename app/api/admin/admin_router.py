@@ -66,7 +66,7 @@ router = APIRouter(
 )
 
 
-# --- Admin User Management ---
+# Admin User Management
 @router.post("/users/create")
 @require_role(Role.ADMIN)
 async def create_user_by_admin(
@@ -159,7 +159,7 @@ async def list_all_users(
 
 
 
-# --- Post Management ---
+# Post Management
 @router.get("/posts")
 @require_role(Role.ADMIN)
 async def list_all_posts(
@@ -401,7 +401,7 @@ async def delete_post_admin(
         admin_id=str(current_user["_id"])
     )
 
-# --- Comment Management ---
+# Comment Management
 @router.get("/comments")
 @require_role(Role.ADMIN)
 async def list_all_comments(
@@ -454,7 +454,7 @@ async def delete_comment_admin(
         admin_id=str(current_user["_id"])
     )
 
-# --- Report Management ---
+# Report Management
 @router.get("/reports", response_model=list[AdminReportResponse])
 @require_role(Role.ADMIN)
 async def list_reports(
@@ -490,7 +490,7 @@ async def resolve_report(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
-# --- Expert Article Management ---
+# Expert Article Management
 @router.get("/expert-articles/pending", response_model=list[ExpertArticleResponse])
 @require_role(Role.ADMIN)
 async def list_pending_articles(db=Depends(get_db), current_user=Depends(get_current_user)):
@@ -558,7 +558,7 @@ async def list_all_expert_articles(
         return await service.list_articles_by_status(status, limit)
     return await service.list_all_articles(limit)
 
-# --- Statistics ---
+# Statistics
 @router.get("/stats")
 @require_role(Role.ADMIN)
 async def get_stats(
@@ -690,7 +690,7 @@ async def get_stats(
     return result
 
 
-# --- AI Integration ---
+# AI Integration
 @router.post("/ai/webhook/analysis-result")
 @require_role(Role.ADMIN)
 async def receive_ai_analysis_result(
@@ -848,7 +848,7 @@ async def get_overview_stats(
     }
 
 
-# --- User Violation ---
+# User Violation
 @router.get("/users/{user_id}/violations")
 @require_role(Role.ADMIN)
 async def get_user_violations(

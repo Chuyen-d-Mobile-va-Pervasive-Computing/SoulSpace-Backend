@@ -128,7 +128,7 @@ def get_question_repository(db: AsyncIOMotorDatabase = Depends(get_db)) -> TestQ
     return TestQuestionRepository(database=db)
 
 
-# ===== Expert dependencies =====
+# Expert dependencies
 
 def get_database(db: AsyncIOMotorDatabase = Depends(get_db)) -> AsyncIOMotorDatabase:
     """Get database instance"""

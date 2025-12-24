@@ -35,7 +35,7 @@ class GameService:
         request: GameCompleteRequest
     ) -> GameCompleteResponse:
         """
-        ✅ CORE BUSINESS LOGIC: Xử lý hoàn thành minigame
+        CORE BUSINESS LOGIC: Xử lý hoàn thành minigame
         
         Flow:
         1. Validate user
@@ -100,7 +100,7 @@ class GameService:
         4. Gán badges mới cho user
         """
         
-        logger.info(f"🔍 Checking badges for user {user_id} with {total_points} points")
+        logger.info(f"Checking badges for user {user_id} with {total_points} points")
         
         # Lấy badges đủ điều kiện
         eligible_badges = await self.badge_repo.get_badges_by_points(total_points)
@@ -127,11 +127,11 @@ class GameService:
             )
             result = await self.badge_repo.create_user_badge(user_badge)
             if result:
-                logger.info(f"   ✅ Unlocked: {badge.name}")
+                logger.info(f"   Unlocked: {badge.name}")
             else:
-                logger.warning(f"   ⚠️  Failed to unlock: {badge.name} (duplicate?)")
+                logger.warning(f"   Failed to unlock: {badge.name} (duplicate?)")
         
-        logger.info(f"✅ Badge check completed. Unlocked {len(new_badges)} new badges")
+        logger.info(f"Badge check completed. Unlocked {len(new_badges)} new badges")
         return new_badges
 
     async def get_questions(self) -> List[QuestionResponse]:

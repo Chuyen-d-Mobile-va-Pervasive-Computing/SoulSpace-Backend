@@ -33,13 +33,13 @@ class DashboardOverviewResponse(BaseModel):
     positive_posts: StatTrendItem # Bài viết tích cực (dựa trên AI Sentiment hoặc Approved)
     ai_flagged: StatTrendItem     # Bài bị AI gắn cờ (Toxic/Blocked)
 
-# --- Emotion Distribution Schema ---
+# Emotion Distribution Schema
 class EmotionStatItem(BaseModel):
     label: str  # Positive, Negative, Neutral
     count: int
     percentage: float
 
-# --- Chart Schema ---
+# Chart Schema
 class ChartDataPoint(BaseModel):
     label: str  # Trục X: Giờ (00:00), Ngày (2025-12-15), hoặc Tháng (Jan)
     value: int  # Trục Y: Số lượng

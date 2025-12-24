@@ -1,4 +1,3 @@
-# app/main.py
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,7 +38,7 @@ from app.api.expert.dashboard_router import router as expert_dashboard_router
 from app.api.expert.expert_schedule_router import router as expert_schedule_router
 from app.api.expert.appointment_router import router as expert_appointment_router
 
-# ==== APP INIT ====
+# APP INIT
 app = FastAPI(title="SoulSpace Backend")
 
 app.add_middleware(
@@ -52,7 +51,7 @@ app.add_middleware(
 
 API_PREFIX = "/api/v1"
 
-# ==== ROUTER REGISTRATION ====
+# ROUTER REGISTRATION
 app.include_router(user_admin_auth_router, prefix=API_PREFIX)
 app.include_router(expert_auth_router, prefix=API_PREFIX)
 app.include_router(chat_router, prefix=API_PREFIX)
@@ -87,7 +86,7 @@ app.include_router(expert_schedule_router, prefix=API_PREFIX)
 app.include_router(expert_appointment_router, prefix=API_PREFIX)
 app.include_router(expert_dashboard_router, prefix=API_PREFIX)
 
-# ==== APP EVENTS ====
+# APP EVENTS
 @app.on_event("startup")
 async def startup_event():
     db_client = await init_db() 

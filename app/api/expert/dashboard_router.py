@@ -1,4 +1,3 @@
-# app/api/expert/dashboard_router.py
 from fastapi import APIRouter, Depends, HTTPException
 from app.schemas.expert.dashboard_schema import ExpertDashboardResponse
 from app.services.expert.dashboard_service import ExpertDashboardService

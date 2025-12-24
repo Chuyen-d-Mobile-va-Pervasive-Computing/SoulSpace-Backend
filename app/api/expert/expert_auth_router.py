@@ -10,7 +10,7 @@ from app.services.expert.expert_auth_service import ExpertAuthService
 from app.services.common.cloudinary_service import CloudinaryService
 from app.core.dependencies import get_current_user, get_expert_auth_service, get_cloudinary_service
 
-router = APIRouter(prefix="/auth/expert", tags=["🔐 Expert Auth"])
+router = APIRouter(prefix="/auth/expert", tags=["Expert Auth"])
 
 
 @router.post("/register", status_code=201)

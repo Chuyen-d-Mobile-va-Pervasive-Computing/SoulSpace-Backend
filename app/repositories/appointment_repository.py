@@ -85,7 +85,7 @@ class AppointmentRepository:
         docs = await cursor.to_list(length=None)
         return [Appointment(**doc) for doc in docs]
 
-    # === Expert queries ===
+    # Expert queries
     async def get_by_expert_id(self, expert_profile_id: str, status: str = None):
         query = {"expert_profile_id": ObjectId(expert_profile_id)}
         if status:
@@ -147,7 +147,7 @@ class AppointmentRepository:
         finally:
             await session.end_session()
 
-    # === TRANSACTION: DECLINE ===
+    # Transaction: Decline
     async def decline_appointment_transaction(self, appointment: Appointment, reason: str = None):
         session = await self.collection.database.client.start_session()
         try:

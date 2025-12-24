@@ -128,10 +128,8 @@ async def analyze_batch_sentiment(request: BatchSentimentRequest):
     )
 
 
-# ============================================
 # TOXIC CONTENT DETECTION
 # Integrated with FastAPI (no external Flask API required)
-# ============================================
 
 from app.services.common.toxic_detection_service import get_toxic_detection_service, ToxicPrediction
 

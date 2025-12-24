@@ -124,7 +124,7 @@ async def create_journal_enhanced(
     """
     form_data = await request.form()
 
-    # === 1. Parse tags ===
+    # 1. Parse tags
     raw_tags = form_data.get("tags")
     parsed_tags: List[str] = []
     if raw_tags:
@@ -139,12 +139,12 @@ async def create_journal_enhanced(
         except json.JSONDecodeError:
             pass
 
-    # === 2. Parse emotion_label ===
+    # 2. Parse emotion_label
     emotion_label = form_data.get("emotion_label")
     if not emotion_label or emotion_label not in ICON_SENTIMENT_MAP:
         emotion_label = "Neutral"
 
-    # === 3. Parse journal_date ===
+    # 3. Parse journal_date
     raw_journal_date = form_data.get("journal_date")
     journal_date: Optional[date] = None
     if raw_journal_date:
@@ -155,12 +155,12 @@ async def create_journal_enhanced(
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid journal_date format. Use YYYY-MM-DD")
 
-    # === 4. Validate text_content ===
+    # 4. Validate text_content
     text_content = form_data.get("text_content")
     if not text_content or not str(text_content).strip():
         raise HTTPException(status_code=400, detail="Text content is required")
 
-    # === 5. Xử lý audio ===
+    # 5. Xử lý audio
     file_path = None
     voice_text = None
     voice_note_path = None
@@ -183,7 +183,7 @@ async def create_journal_enhanced(
             voice_text = await transcribe_service.transcribe_audio(open(file_path, "rb").read())
             voice_note_path = file_path
 
-        # === 6. Khởi tạo services & orchestrator ===
+        # 6. Khởi tạo services & orchestrator
         journal_service = JournalService(JournalRepository(db))
 
         orchestrator = JournalTreeOrchestrator(

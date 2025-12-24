@@ -1,4 +1,3 @@
-# app/services/user/journal_service.py
 import asyncio
 from bson import ObjectId
 from typing import Optional, List, Tuple

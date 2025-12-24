@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     PORT: int = 8000
     ASSEMBLYAI_API_KEY: str
     
-    # ===== CLOUDINARY =====
+    # CLOUDINARY
     CLOUDINARY_CLOUD_NAME: str
     CLOUDINARY_API_KEY: str
     CLOUDINARY_API_SECRET: str

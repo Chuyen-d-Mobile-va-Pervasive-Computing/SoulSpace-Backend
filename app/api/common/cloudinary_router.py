@@ -4,13 +4,11 @@ from app.schemas.common.cloudinary_schema import CloudinaryUploadResponseSchema
 from app.schemas.expert.expert_schema import FileUploadResponse
 from app.core.dependencies import get_current_admin, get_current_expert, get_current_user
 
-router = APIRouter(prefix="/upload", tags=["☁️ Cloudinary Upload"])
+router = APIRouter(prefix="/upload", tags=["Cloudinary Upload"])
 
 
-# ============================================
 # PUBLIC UPLOADS (No Auth Required)
 # For Expert Registration Flow
-# ============================================
 
 @router.post("/public/avatar", response_model=CloudinaryUploadResponseSchema)
 async def upload_avatar_public(
@@ -67,9 +65,7 @@ async def upload_certificate_public(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============================================
 # AUTHENTICATED UPLOADS
-# ============================================
 
 # User upload avatar (any logged in user)
 @router.post("/user/avatar", response_model=CloudinaryUploadResponseSchema)
@@ -153,10 +149,7 @@ async def upload_expert_certificate(file: UploadFile = File(...), service: Cloud
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# ============================================
 # POST IMAGE UPLOADS
-# ============================================
 
 @router.post("/public/post-image", response_model=CloudinaryUploadResponseSchema)
 async def upload_post_image_public(

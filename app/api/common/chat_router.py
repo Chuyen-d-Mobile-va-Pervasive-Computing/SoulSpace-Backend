@@ -1,4 +1,3 @@
-# app/api/common/chat_router.py
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, HTTPException
 from typing import Optional
 from app.core.dependencies import get_current_user_ws, get_current_user

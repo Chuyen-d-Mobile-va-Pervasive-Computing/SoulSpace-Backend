@@ -8,9 +8,9 @@ from typing import List, Optional, Union
 from app.core.dependencies import get_current_user, get_expert_service, get_feed_service, get_current_user_optional
 from app.core.permissions import Role, require_role
 from app.schemas.expert.expert_article_schema import ExpertArticleCreate, ExpertArticleResponse
-from app.schemas.common.feed_schema import FeedItemResponse # Import schema mới
+from app.schemas.common.feed_schema import FeedItemResponse
 from app.services.expert.expert_article_service import ExpertArticleService
-from app.services.common.feed_service import FeedService # Import service mới
+from app.services.common.feed_service import FeedService
 from app.services.common.cloudinary_service import CloudinaryService
 from app.core.database import get_db
 
@@ -67,9 +67,8 @@ async def create_article_with_image(
 ):
     image_url = None
     
-    # --- DEBUG LOG ---
+    # DEBUG LOG
     print(f"DEBUG: Type: {type(image)}")
-    # -----------------
 
     # CASE 1: Người dùng gửi File (UploadFile từ starlette hoặc fastapi)
     # SỬA Ở ĐÂY: Dùng hasattr để kiểm tra thay vì isinstance

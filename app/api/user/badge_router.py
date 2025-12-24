@@ -10,7 +10,7 @@ from app.repositories.user_repository import UserRepository
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 
-router = APIRouter(prefix="/badges", tags=["👤 User - Badges (Huy hiệu)"])
+router = APIRouter(prefix="/badges", tags=["User - Badges (Huy hiệu)"])
 
 def get_badge_service(db=Depends(get_db)):
     badge_repo = BadgeRepository(db)
