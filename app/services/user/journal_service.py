@@ -98,7 +98,7 @@ class JournalService:
     ) -> Journal:
         """
         Tạo journal mới. Lưu UTC vào DB.
-        
+    
         - journal_date: date từ FE (theo giờ VN), BE sẽ convert sang UTC
         - created_at: UTC naive datetime lưu vào DB
         """
@@ -107,13 +107,11 @@ class JournalService:
         toxic_confidence = 0.0
         is_toxic = False
         toxic_predictions = {}
- 
         texts_to_check = []
         if text_content:
             texts_to_check.append(text_content)
         if voice_text:
             texts_to_check.append(voice_text)
- 
         if texts_to_check and await self.toxic_service.check_health():
             try:
                 result = await self.toxic_service.analyze_text(texts_to_check[0], threshold=0.5)
@@ -122,7 +120,7 @@ class JournalService:
                     is_toxic = True
                     toxic_labels.extend(result.toxic_labels)
                     toxic_confidence = result.confidence
-                    
+                
                 for text in texts_to_check[1:]:
                     res = await self.toxic_service.analyze_text(text, threshold=0.5)
                     for label, prob in res.predictions.items():
@@ -131,42 +129,39 @@ class JournalService:
                         is_toxic = True
                         toxic_labels.extend(res.toxic_labels)
                         toxic_confidence = max(toxic_confidence, res.confidence)
-                        
+                    
                 toxic_labels = list(set(toxic_labels))
             except Exception as e:
                 print(f"[TOXIC DETECTION ERROR] Journal: {e}")
- 
+
         # 2. Sentiment Analysis
         sentiment_label = "Neutral"
         sentiment_score = 0.0
         if emotion_label and emotion_label in ICON_SENTIMENT_MAP:
             sentiment_label, sentiment_score = ICON_SENTIMENT_MAP[emotion_label]
- 
+
         # 3. Xử lý created_at - LƯU UTC VÀO DB
         if journal_date:
-            # FE truyền date theo giờ VN
             # Validate: không cho phép ngày tương lai
             today_vn = get_vn_now().date()
             if journal_date > today_vn:
                 raise ValueError("Journal date cannot be in the future")
-            
+        
             # Nếu là hôm nay → dùng thời gian hiện tại
-            # Nếu là ngày cũ → dùng 12:00 giữa ngày
+            # Nếu là ngày quá khứ → dùng 00:00:00 đầu ngày VN (để query ổn định)
             if journal_date == today_vn:
                 vn_datetime = get_vn_now()
             else:
-                vn_datetime = datetime.combine(journal_date, time(12, 0, 0), tzinfo=VN_TZ)
-            
-            # Convert sang UTC naive để lưu DB
+                vn_datetime = datetime.combine(journal_date, time(0, 0, 0), tzinfo=VN_TZ)
+        
             created_at = vn_datetime.astimezone(timezone.utc).replace(tzinfo=None)
         else:
-            # Không truyền journal_date → dùng thời gian hiện tại
             created_at = datetime.now(timezone.utc).replace(tzinfo=None)
- 
+
         # 4. Tạo journal document
         journal_data = {
             "user_id": ObjectId(user_id),
-            "created_at": created_at,  # UTC naive datetime
+            "created_at": created_at,
             "emotion_label": emotion_label,
             "text_content": text_content,
             "voice_note_path": voice_note_path,
@@ -179,19 +174,18 @@ class JournalService:
             "toxic_confidence": toxic_confidence,
             "toxic_predictions": toxic_predictions
         }
- 
+
         # 5. Insert vào MongoDB
         result = await self.journal_repo.collection.insert_one(journal_data)
- 
+
         # 6. Lấy lại document
         created_doc = await self.journal_repo.collection.find_one({"_id": result.inserted_id})
- 
         if not created_doc:
             raise ValueError("Failed to create journal")
- 
+
         # 7. Return Journal model
         return Journal(**created_doc)
- 
+
     async def get_user_journals(self, user_id: str) -> List[Journal]:
         """Lấy tất cả journals của user."""
         return await self.journal_repo.get_by_user(user_id)
